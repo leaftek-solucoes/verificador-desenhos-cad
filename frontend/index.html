@@ -44,7 +44,7 @@
   </script>
 
   <style>
-    /* Padrão F7 do AutoCAD: Malha Fina (20px) + Linhas Mestras (100px) */
+    /* Padrão F7 do AutoCAD: Malha Menor (20px) + Linhas Mestras (100px) */
     body {
       background-color: #0c1017;
       background-image: 
@@ -77,15 +77,15 @@
   <!-- Header Superior -->
   <header class="bg-cad-surface/95 backdrop-blur-md border-b border-cad-border px-6 py-3 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-50 shadow-2xl">
     
-    <!-- Logo Oficial LeafTek Carregada Direto do Arquivo WebP -->
+    <!-- Logo Oficial LeafTek WebP -->
     <div class="flex items-center gap-3">
       <a href="https://leaftek.com.br" target="_blank" class="flex items-center group transition-transform active:scale-95" title="LeafTek - Soluções de Projetos">
         <img src="logo-leaftek.webp" alt="LeafTek - Soluções de Projetos" class="h-10 w-auto object-contain drop-shadow-[0_0_12px_rgba(92,184,52,0.22)]">
       </a>
 
-      <!-- Selo do Motor -->
+      <!-- Selo do Motor A1 -->
       <span class="hidden sm:inline-block text-[10px] font-mono px-2 py-0.5 rounded bg-cad-card border border-cad-border text-leaf-500 font-bold ml-2">
-        QA/QC A3 ENGINE
+        QA/QC A1 ENGINE
       </span>
     </div>
 
@@ -127,7 +127,7 @@
           <h1 class="text-lg font-bold text-white tracking-wide flex items-center gap-2">
             <i class="fa-solid fa-compass-drafting text-leaf-500"></i> Auditoria Técnica de Desenhos
           </h1>
-          <p class="text-xs text-cad-text mt-0.5">Emissão de prancha A3 de verificação com nuvens de revisão e carimbo oficial.</p>
+          <p class="text-xs text-cad-text mt-0.5">Emissão de prancha A1 de verificação com nuvens de revisão e carimbo oficial.</p>
         </div>
         <div class="flex items-center gap-2">
           <span class="text-[11px] font-mono bg-cad-card px-2.5 py-1 rounded text-leaf-500 border border-leaf-500/30 font-bold">.DWG</span>
@@ -164,7 +164,7 @@
       <!-- Botão de Ação -->
       <button id="btnRunCheck" class="w-full bg-leaf-500 hover:bg-leaf-400 text-black font-bold py-3.5 rounded-xl flex items-center justify-center gap-2.5 shadow-[0_0_20px_rgba(92,184,52,0.22)] transition-all disabled:opacity-40 disabled:cursor-not-allowed">
         <i class="fa-solid fa-microchip"></i>
-        <span>Auditar Desenho e Emitir Cópia de Verificação A3</span>
+        <span>Auditar Desenho e Emitir Cópia de Verificação A1</span>
       </button>
     </div>
 
@@ -180,10 +180,10 @@
           </span>
         </div>
         
-        <!-- Botão Primário: Download A3 -->
-        <a id="btnDownloadA3Pdf" href="#" target="_blank" class="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-4 py-2.5 rounded-xl text-xs font-bold font-mono flex items-center gap-2 transition-all">
+        <!-- Botão Primário: Download A1 -->
+        <a id="btnDownloadA1Pdf" href="#" target="_blank" class="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-4 py-2.5 rounded-xl text-xs font-bold font-mono flex items-center gap-2 transition-all">
           <i class="fa-solid fa-file-pdf text-sm"></i>
-          <span>Baixar Cópia de Verificação A3</span>
+          <span>Baixar Cópia de Verificação A1</span>
         </a>
       </div>
 
@@ -210,7 +210,7 @@
     <div class="flex items-center gap-3">
       <span>UCS: WORLD</span>
       <span>•</span>
-      <span>ESCALA: 1:1</span>
+      <span>FORMATO: ISO A1 (841 x 594 mm)</span>
     </div>
   </footer>
 
@@ -230,7 +230,7 @@
     const badgeVerdict = document.getElementById('badgeVerdict');
     const scoreConformidade = document.getElementById('scoreConformidade');
     const issuesContainer = document.getElementById('issuesContainer');
-    const btnDownloadA3Pdf = document.getElementById('btnDownloadA3Pdf');
+    const btnDownloadA1Pdf = document.getElementById('btnDownloadA1Pdf');
     const apiEndpointInput = document.getElementById('apiEndpointInput');
 
     const savedApi = localStorage.getItem('leaf_api');
@@ -280,13 +280,13 @@
       const apiUrl = apiEndpointInput.value.trim().replace(/\/$/, "");
 
       btnRunCheck.disabled = true;
-      btnRunCheck.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processando Desenho e Gerando Folha A3...';
+      btnRunCheck.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processando Desenho e Gerando Folha A1...';
 
       const formData = new FormData();
       formData.append("file", selectedFile);
 
       try {
-        const res = await fetch(`${apiUrl}/auditar-a3`, { method: "POST", body: formData });
+        const res = await fetch(`${apiUrl}/auditar-a1`, { method: "POST", body: formData });
         if (!res.ok) {
           const errDetail = await res.json().catch(() => ({}));
           throw new Error(errDetail.detail || `Erro HTTP ${res.status}`);
@@ -315,14 +315,14 @@
           issuesContainer.appendChild(div);
         });
 
-        btnDownloadA3Pdf.href = `${apiUrl}/download-pdf/${data.pdf_filename}`;
+        btnDownloadA1Pdf.href = `${apiUrl}/download-pdf/${data.pdf_filename}`;
         resultsPanel.classList.remove('hidden');
 
       } catch (err) {
         alert(`Falha no processamento: ${err.message}`);
       } finally {
         btnRunCheck.disabled = false;
-        btnRunCheck.innerHTML = '<i class="fa-solid fa-microchip"></i> <span>Auditar Desenho e Emitir Cópia de Verificação A3</span>';
+        btnRunCheck.innerHTML = '<i class="fa-solid fa-microchip"></i> <span>Auditar Desenho e Emitir Cópia de Verificação A1</span>';
       }
     });
   </script>
