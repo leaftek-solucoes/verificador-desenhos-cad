@@ -72,13 +72,27 @@ class DimensionChecker:
                         "medida_real": round(actual_measurement, 2),
                         "diferenca_mm": round(delta, 2),
                         "gravidade": "CRITICA" if is_fraudulent else "MEDIA",
+                        "descricao": (
+                            f"Cota forçada para '{cleaned_override}'. "
+                            f"Geometria real mede {actual_measurement:.1f} mm "
+                            f"(divergência de {delta:.1f} mm)."
+                            if is_fraudulent else
+                            f"Cota com texto estático forçado: '{cleaned_override}'."
+                        ),
                         "posicao": coords
                     })
+
+        # Cálculo seguro da porcentagem de conformidade
+        conformidade = (
+            round(((total_dimensions - overridden_count) / total_dimensions) * 100, 1)
+            if total_dimensions > 0 else 100.0
+        )
 
         return {
             "modulo": "dimension_checker",
             "total_cotas_analisadas": total_dimensions,
             "cotas_adulteradas": overridden_count,
+            "conformidade_percentual": conformidade,
             "status": "REPROVADO" if overridden_count > 0 else "APROVADO",
             "inconformidades": issues
         }
