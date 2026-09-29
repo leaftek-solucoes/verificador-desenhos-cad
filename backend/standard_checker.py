@@ -3,10 +3,10 @@ import ezdxf
 
 class StandardChecker:
     def __init__(self):
-        # Termos homologados para identificação de legendas e carimbos técnicos
+        # Palavras-chave homologadas para carimbos e selos industriais
         self.title_block_keywords = [
             "CARIMBO", "TITLE", "SELO", "LEGENDA", "FOLHA",
-            "FORMATO", "PRANCHA", "DRAFT", "VALE", "A3", "A1", "A2", "A0", "A4"
+            "FORMATO", "PRANCHA", "DRAFT", "VALE", "A1", "A2", "A3", "A0"
         ]
 
     def check(self, doc: ezdxf.document.Drawing) -> Dict[str, Any]:
@@ -17,9 +17,8 @@ class StandardChecker:
         title_block_found = False
         total_layouts = len(layouts)
 
-        # 1. Auditoria nos Layouts (Paper Space)
+        # 1. Varredura nos layouts (Paper Space)
         for layout in layouts:
-            # Checagem de Viewports destravadas
             for vp in layout.query("VIEWPORT"):
                 if vp.dxf.get("id", 0) <= 1:
                     continue
@@ -33,18 +32,17 @@ class StandardChecker:
                         "tipo": "Viewport Destravada",
                         "espaco": layout.name,
                         "gravidade": "ALTA",
-                        "descricao": f"Viewport no layout '{layout.name}' com Display Locked = Não. Risco de alteração acidental de escala.",
+                        "descricao": f"Viewport no layout '{layout.name}' com trava desativada.",
                         "posicao": {"x": round(center[0], 2), "y": round(center[1], 2)}
                     })
 
-            # Varredura de blocos de carimbo no layout
             for insert in layout.query("INSERT"):
                 block_name = insert.dxf.name.upper()
                 if any(kw in block_name for kw in self.title_block_keywords):
                     title_block_found = True
                     break
 
-        # 2. Varredura alternativa no Model Space (caso o carimbo tenha sido inserido no Model)
+        # 2. Varredura alternativa no Model Space
         if not title_block_found:
             msp = doc.modelspace()
             for insert in msp.query("INSERT"):
@@ -57,9 +55,9 @@ class StandardChecker:
             issues.append({
                 "id": "STD-NO-TITLEBLOCK",
                 "tipo": "Carimbo Não Identificado",
-                "espaco": "Layouts / Model",
+                "espaco": "Geral / Prancha",
                 "gravidade": "CRITICA",
-                "descricao": "Bloco padrão de carimbo/legenda homologado não localizado no desenho.",
+                "descricao": "Bloco padrão de carimbo/legenda homologado não localizado.",
                 "posicao": {"x": 0.0, "y": 0.0}
             })
 
