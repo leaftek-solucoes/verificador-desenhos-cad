@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LeafTek CAD QA/QC - Validador de Projetos</title>
   
+  <!-- Fontes Corporativas e Técnicas -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@600;700;800&display=swap" rel="stylesheet">
   
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -17,8 +18,20 @@
       theme: {
         extend: {
           colors: {
-            leaf: { 400: '#26ffa7', 500: '#00F298', 600: '#00c77a' },
-            cad: { bg: '#080C14', surface: '#0E1422', card: '#141D30', border: '#1F2C47', text: '#94A3B8' }
+            leaf: {
+              400: '#72cf48',
+              500: '#5cb834',  /* Verde Oficial LeafTek */
+              600: '#4da02a',
+              900: '#1e460e'
+            },
+            cad: {
+              bg: '#0c1017',        /* Fundo Model Space AutoCAD */
+              surface: '#121824',
+              card: '#161f30',
+              border: '#233047',
+              borderLight: '#314363',
+              text: '#94A3B8'
+            }
           },
           fontFamily: {
             sans: ['Inter', 'sans-serif'],
@@ -29,106 +42,179 @@
       }
     }
   </script>
-</head>
-<body class="min-h-screen bg-cad-bg text-slate-200 font-sans flex flex-col justify-between selection:bg-leaf-500 selection:text-black">
 
-  <!-- Header Compacto -->
-  <header class="bg-cad-surface border-b border-cad-border px-6 py-3 flex items-center justify-between shadow-lg">
+  <style>
+    /* Padrão F7 do AutoCAD: Malha Fina (20px) + Linhas Mestras (100px) */
+    body {
+      background-color: #0c1017;
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+        linear-gradient(to right, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+      background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
+      background-position: -1px -1px, -1px -1px, -1px -1px, -1px -1px;
+    }
+
+    .custom-scroll::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: #121824;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #233047;
+      border-radius: 4px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb:hover {
+      background: #5cb834;
+    }
+  </style>
+</head>
+<body class="min-h-screen text-slate-200 font-sans flex flex-col justify-between selection:bg-leaf-500 selection:text-black">
+
+  <!-- Header Superior -->
+  <header class="bg-cad-surface/95 backdrop-blur-md border-b border-cad-border px-6 py-3 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-50 shadow-2xl">
+    
+    <!-- Logo Oficial LeafTek Carregada Direto do Arquivo WebP -->
     <div class="flex items-center gap-3">
-      <div class="w-8 h-8 rounded-lg bg-leaf-500/10 border border-leaf-500/30 flex items-center justify-center text-leaf-500 font-bold">
-        <i class="fa-solid fa-stamp"></i>
-      </div>
-      <div>
-        <span class="font-display font-bold text-white tracking-wide">LEAF<span class="text-leaf-500">TEK</span></span>
-        <span class="text-[10px] font-mono ml-2 px-1.5 py-0.5 rounded bg-cad-card border border-cad-border text-leaf-500 font-bold">QA/QC A3 ENGINE</span>
-      </div>
+      <a href="https://leaftek.com.br" target="_blank" class="flex items-center group transition-transform active:scale-95" title="LeafTek - Soluções de Projetos">
+        <img src="logo-leaftek.webp" alt="LeafTek - Soluções de Projetos" class="h-10 w-auto object-contain drop-shadow-[0_0_12px_rgba(92,184,52,0.22)]">
+      </a>
+
+      <!-- Selo do Motor -->
+      <span class="hidden sm:inline-block text-[10px] font-mono px-2 py-0.5 rounded bg-cad-card border border-cad-border text-leaf-500 font-bold ml-2">
+        QA/QC A3 ENGINE
+      </span>
     </div>
 
-    <!-- Endpoint API e Créditos -->
+    <!-- Controles de Conexão com API e Créditos -->
     <div class="flex items-center gap-3">
-      <div class="hidden md:flex items-center gap-2 bg-cad-card border border-cad-border px-3 py-1.5 rounded-lg text-xs font-mono">
+      <!-- Input de Endpoint da API -->
+      <div class="hidden md:flex items-center gap-2 bg-cad-card/80 border border-cad-border px-3 py-1.5 rounded-lg text-xs font-mono">
         <span class="w-2 h-2 rounded-full bg-leaf-500 animate-pulse"></span>
-        <input type="text" id="apiEndpointInput" value="http://localhost:8000" class="bg-transparent border-none outline-none text-white w-52 truncate">
-        <button id="btnSaveApi" class="text-leaf-500 hover:text-white" title="Salvar URL"><i class="fa-solid fa-check"></i></button>
+        <span class="text-cad-text">API:</span>
+        <input type="text" id="apiEndpointInput" value="http://localhost:8000" class="bg-transparent border-none outline-none text-white w-52 truncate" placeholder="URL da API">
+        <button id="btnSaveApi" class="text-leaf-500 hover:text-white transition-colors" title="Salvar URL">
+          <i class="fa-solid fa-floppy-disk"></i>
+        </button>
       </div>
 
+      <!-- Indicador do Grid F7 -->
+      <div class="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded bg-cad-card/60 border border-cad-border text-[10px] font-mono text-cad-text">
+        <i class="fa-solid fa-table-cells text-leaf-500"></i>
+        <span>F7 GRID: ATIVO</span>
+      </div>
+
+      <!-- Saldo de Créditos -->
       <div class="flex items-center gap-2 bg-cad-card border border-cad-border px-3 py-1.5 rounded-lg text-xs font-mono">
-        <i class="fa-solid fa-coins text-leaf-500"></i>
+        <i class="fa-solid fa-bolt text-leaf-500"></i>
         <span>Créditos: <strong id="creditCount" class="text-white">12</strong></span>
       </div>
     </div>
   </header>
 
-  <!-- Container Central Minimalista -->
-  <main class="max-w-4xl w-full mx-auto p-4 md:p-6 flex-1 flex flex-col justify-center gap-6">
+  <!-- Conteúdo Principal Centralizado -->
+  <main class="max-w-4xl w-full mx-auto p-4 md:p-6 flex-1 flex flex-col justify-center gap-6 my-auto">
 
-    <!-- Card Principal de Upload -->
-    <div class="bg-cad-surface border border-cad-border rounded-2xl p-6 shadow-2xl flex flex-col gap-5">
-      <div class="flex items-center justify-between border-b border-cad-border/60 pb-3">
+    <!-- Card de Upload e Auditoria -->
+    <div class="bg-cad-surface/90 backdrop-blur-md border border-cad-border rounded-2xl p-6 md:p-8 shadow-2xl flex flex-col gap-6 relative overflow-hidden">
+      
+      <!-- Cabeçalho do Card -->
+      <div class="flex items-center justify-between border-b border-cad-border/60 pb-4">
         <div>
-          <h1 class="text-base font-bold text-white">Verificação Técnica de Desenhos</h1>
-          <p class="text-xs text-cad-text">Geração automática de cópia de verificação em prancha A3 com marcações.</p>
+          <h1 class="text-lg font-bold text-white tracking-wide flex items-center gap-2">
+            <i class="fa-solid fa-compass-drafting text-leaf-500"></i> Auditoria Técnica de Desenhos
+          </h1>
+          <p class="text-xs text-cad-text mt-0.5">Emissão de prancha A3 de verificação com nuvens de revisão e carimbo oficial.</p>
         </div>
-        <span class="text-[11px] font-mono bg-cad-card px-2.5 py-1 rounded text-cad-text border border-cad-border">DWG / DXF</span>
+        <div class="flex items-center gap-2">
+          <span class="text-[11px] font-mono bg-cad-card px-2.5 py-1 rounded text-leaf-500 border border-leaf-500/30 font-bold">.DWG</span>
+          <span class="text-[11px] font-mono bg-cad-card px-2.5 py-1 rounded text-cad-text border border-cad-border">.DXF</span>
+        </div>
       </div>
 
-      <!-- Zona de Upload -->
-      <div id="dropZone" class="border-2 border-dashed border-cad-border hover:border-leaf-500/60 rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all bg-cad-card/30 hover:bg-leaf-500/5 group">
+      <!-- Área de Drag & Drop -->
+      <div id="dropZone" class="border-2 border-dashed border-cad-border hover:border-leaf-500/70 rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all bg-cad-card/40 hover:bg-leaf-500/5 group">
         <input type="file" id="fileInput" accept=".dxf,.dwg" class="hidden">
-        <div class="w-12 h-12 rounded-xl bg-cad-card border border-cad-border group-hover:border-leaf-500/40 flex items-center justify-center text-cad-text group-hover:text-leaf-500 text-xl transition-all mb-3">
+        <div class="w-14 h-14 rounded-xl bg-cad-card border border-cad-border group-hover:border-leaf-500/50 flex items-center justify-center text-cad-text group-hover:text-leaf-500 text-2xl transition-all mb-3 shadow-lg">
           <i class="fa-solid fa-file-circle-check"></i>
         </div>
-        <p class="text-sm font-semibold text-white mb-1">Arraste o arquivo ou <span class="text-leaf-500 underline">clique para selecionar</span></p>
-        <p class="text-xs text-cad-text">AutoCAD e Advance Steel (Model Space e Layouts)</p>
+        <p class="text-sm font-semibold text-white mb-1">Arraste a prancha ou <span class="text-leaf-500 underline underline-offset-4">clique para selecionar</span></p>
+        <p class="text-xs text-cad-text">Conversão automática de DWG nativo via LibreDWG</p>
       </div>
 
-      <!-- Card do Arquivo Selecionado -->
-      <div id="fileSelectedBar" class="hidden bg-cad-card border border-leaf-500/30 rounded-xl p-3.5 flex items-center justify-between">
+      <!-- Barra de Arquivo Selecionado -->
+      <div id="fileSelectedBar" class="hidden bg-cad-card border border-leaf-500/30 rounded-xl p-4 flex items-center justify-between">
         <div class="flex items-center gap-3 overflow-hidden">
-          <i class="fa-solid fa-file-lines text-leaf-500 text-lg"></i>
+          <div class="w-9 h-9 rounded-lg bg-leaf-500/10 border border-leaf-500/30 flex items-center justify-center text-leaf-500">
+            <i class="fa-solid fa-file-lines text-base"></i>
+          </div>
           <div class="truncate">
             <p id="fileNameTxt" class="text-xs font-bold text-white truncate">-</p>
             <p id="fileSizeTxt" class="text-[10px] font-mono text-cad-text">0 KB</p>
           </div>
         </div>
-        <button id="btnRemoveFile" class="text-cad-text hover:text-red-400 p-1 text-sm"><i class="fa-solid fa-xmark"></i></button>
+        <button id="btnRemoveFile" class="text-cad-text hover:text-red-400 p-2 text-sm transition-colors" title="Remover">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
       </div>
 
       <!-- Botão de Ação -->
-      <button id="btnRunCheck" class="w-full bg-leaf-500 hover:bg-leaf-400 text-black font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(0,242,152,0.15)] transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-        <i class="fa-solid fa-bolt"></i>
-        <span>Executar Auditoria e Gerar Prancha A3</span>
+      <button id="btnRunCheck" class="w-full bg-leaf-500 hover:bg-leaf-400 text-black font-bold py-3.5 rounded-xl flex items-center justify-center gap-2.5 shadow-[0_0_20px_rgba(92,184,52,0.22)] transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+        <i class="fa-solid fa-microchip"></i>
+        <span>Auditar Desenho e Emitir Cópia de Verificação A3</span>
       </button>
     </div>
 
-    <!-- Painel de Resultados (Aparece após execução) -->
-    <div id="resultsPanel" class="hidden bg-cad-surface border border-cad-border rounded-2xl p-6 shadow-2xl flex flex-col gap-5">
-      <div class="flex items-center justify-between pb-3 border-b border-cad-border">
+    <!-- Painel de Resultados (Exibido pós-auditoria) -->
+    <div id="resultsPanel" class="hidden bg-cad-surface/90 backdrop-blur-md border border-cad-border rounded-2xl p-6 md:p-8 shadow-2xl flex flex-col gap-5">
+      <div class="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-cad-border">
         <div class="flex items-center gap-3">
-          <span id="badgeVerdict" class="text-xs font-mono font-bold px-3 py-1 rounded bg-red-500/20 text-red-400 border border-red-500/30">REPROVADO</span>
-          <span id="scoreConformidade" class="text-xs font-mono text-cad-text">Conformidade: <strong class="text-white">0%</strong></span>
+          <span id="badgeVerdict" class="text-xs font-mono font-bold px-3 py-1 rounded bg-red-500/20 text-red-400 border border-red-500/30">
+            REPROVADO
+          </span>
+          <span id="scoreConformidade" class="text-xs font-mono text-cad-text">
+            Conformidade: <strong class="text-white">0%</strong>
+          </span>
         </div>
         
-        <!-- Botão Principal de Download A3 -->
-        <a id="btnDownloadA3Pdf" href="#" target="_blank" class="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-4 py-2 rounded-xl text-xs font-bold font-mono flex items-center gap-2 transition-all">
+        <!-- Botão Primário: Download A3 -->
+        <a id="btnDownloadA3Pdf" href="#" target="_blank" class="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-4 py-2.5 rounded-xl text-xs font-bold font-mono flex items-center gap-2 transition-all">
           <i class="fa-solid fa-file-pdf text-sm"></i>
           <span>Baixar Cópia de Verificação A3</span>
         </a>
       </div>
 
-      <!-- Lista Resumida de Inconformidades -->
+      <!-- Relação de Ressalvas -->
       <div>
-        <h3 class="text-xs uppercase font-mono text-cad-text tracking-wider mb-3">Observações a serem modificadas pelo projetista:</h3>
-        <div id="issuesContainer" class="space-y-2 max-h-60 overflow-y-auto pr-1"></div>
+        <h3 class="text-xs uppercase font-mono text-cad-text tracking-wider mb-3 flex items-center gap-2">
+          <i class="fa-solid fa-triangle-exclamation text-amber-400"></i> Observações a serem modificadas pelo projetista:
+        </h3>
+        <div id="issuesContainer" class="space-y-2 max-h-64 overflow-y-auto pr-1 custom-scroll"></div>
       </div>
     </div>
 
   </main>
 
-  <footer class="text-center py-3 text-[11px] font-mono text-cad-text border-t border-cad-border/40">
-    LeafTek QA/QC Platform • Desenvolvido para Auditoria Executiva de Engenharia
+  <!-- Barra de Status Técnica Inferior -->
+  <footer class="bg-cad-surface/80 border-t border-cad-border px-6 py-2 flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono text-cad-text">
+    <div class="flex items-center gap-4">
+      <span class="text-white font-bold tracking-wide">LEAFTEK • QA/QC PLATFORM</span>
+      <span class="hidden sm:inline">|</span>
+      <span class="hidden sm:inline">DENSIDADE DO AÇO: 7.850 kg/m³</span>
+      <span class="hidden md:inline">|</span>
+      <span class="hidden md:inline">NORMA: NBR 8800 / AWS E7018</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <span>UCS: WORLD</span>
+      <span>•</span>
+      <span>ESCALA: 1:1</span>
+    </div>
   </footer>
 
+  <!-- Script Lógico Integrado -->
   <script>
     let selectedFile = null;
     let credits = parseInt(localStorage.getItem('leaf_credits') || '12');
@@ -152,15 +238,20 @@
 
     document.getElementById('btnSaveApi').addEventListener('click', () => {
       localStorage.setItem('leaf_api', apiEndpointInput.value.trim());
-      alert('URL da API salva.');
+      alert('Endpoint da API salvo com sucesso.');
     });
 
     dropZone.addEventListener('click', () => fileInput.click());
-    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-leaf-500'); });
-    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-leaf-500'));
+    dropZone.addEventListener('dragover', (e) => { 
+      e.preventDefault(); 
+      dropZone.classList.add('border-leaf-500', 'bg-leaf-500/10'); 
+    });
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('border-leaf-500', 'bg-leaf-500/10');
+    });
     dropZone.addEventListener('drop', (e) => {
       e.preventDefault();
-      dropZone.classList.remove('border-leaf-500');
+      dropZone.classList.remove('border-leaf-500', 'bg-leaf-500/10');
       if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
     });
     fileInput.addEventListener('change', (e) => {
@@ -185,21 +276,23 @@
     });
 
     btnRunCheck.addEventListener('click', async () => {
-      if (!selectedFile) return alert('Selecione um arquivo .dxf ou .dwg.');
+      if (!selectedFile) return alert('Selecione um arquivo .dwg ou .dxf antes de auditar.');
       const apiUrl = apiEndpointInput.value.trim().replace(/\/$/, "");
 
       btnRunCheck.disabled = true;
-      btnRunCheck.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processando Prancha A3...';
+      btnRunCheck.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processando Desenho e Gerando Folha A3...';
 
       const formData = new FormData();
       formData.append("file", selectedFile);
 
       try {
         const res = await fetch(`${apiUrl}/auditar-a3`, { method: "POST", body: formData });
-        if (!res.ok) throw new Error(`Falha ${res.status}`);
+        if (!res.ok) {
+          const errDetail = await res.json().catch(() => ({}));
+          throw new Error(errDetail.detail || `Erro HTTP ${res.status}`);
+        }
         const data = await res.json();
 
-        // Renderiza Resultados
         badgeVerdict.innerText = data.status_geral;
         badgeVerdict.className = data.status_geral === 'APROVADO' 
           ? 'text-xs font-mono font-bold px-3 py-1 rounded bg-leaf-500/20 text-leaf-500 border border-leaf-500/40'
@@ -210,9 +303,10 @@
         issuesContainer.innerHTML = '';
         data.inconformidades.forEach(err => {
           const div = document.createElement('div');
+          const isCrit = err.gravidade === 'CRITICA';
           div.className = 'p-3 rounded-lg bg-cad-card border border-cad-border flex items-start gap-3 text-xs';
           div.innerHTML = `
-            <span class="px-2 py-0.5 rounded font-mono font-bold text-[10px] ${err.gravidade === 'CRITICA' ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}">${err.id}</span>
+            <span class="px-2 py-0.5 rounded font-mono font-bold text-[10px] ${isCrit ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}">${err.id}</span>
             <div class="flex-1">
               <strong class="text-white block">${err.tipo}</strong>
               <span class="text-cad-text">${err.descricao}</span>
@@ -221,15 +315,14 @@
           issuesContainer.appendChild(div);
         });
 
-        // Link de download do PDF A3 gerado no backend
         btnDownloadA3Pdf.href = `${apiUrl}/download-pdf/${data.pdf_filename}`;
         resultsPanel.classList.remove('hidden');
 
       } catch (err) {
-        alert(`Erro ao comunicar com a API: ${err.message}`);
+        alert(`Falha no processamento: ${err.message}`);
       } finally {
         btnRunCheck.disabled = false;
-        btnRunCheck.innerHTML = '<i class="fa-solid fa-bolt"></i> <span>Executar Auditoria e Gerar Prancha A3</span>';
+        btnRunCheck.innerHTML = '<i class="fa-solid fa-microchip"></i> <span>Auditar Desenho e Emitir Cópia de Verificação A3</span>';
       }
     });
   </script>
