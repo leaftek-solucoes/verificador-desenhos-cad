@@ -6,7 +6,6 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import ezdxf
 
-# Importação dos 5 módulos especialistas de verificação
 from dimension_checker import DimensionChecker
 from layer_checker import LayerChecker
 from bom_checker import BOMChecker
@@ -16,10 +15,9 @@ from standard_checker import StandardChecker
 app = FastAPI(
     title="LeafTek CAD Engine - QA/QC Checker",
     description="Motor de auditoria automatizada para desenhos técnicos DWG/DXF",
-    version="1.0.0"
+    version="1.0.1"
 )
 
-# Liberação de CORS para permitir requisições do frontend (HTML/JS)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -40,21 +38,11 @@ def health_check():
     return {
         "sistema": "LeafTek CAD QA/QC Engine",
         "status": "Online",
-        "modulos_ativos": [
-            "DimensionChecker",
-            "LayerChecker",
-            "BOMChecker",
-            "TextChecker",
-            "StandardChecker"
-        ]
+        "versao": "1.0.1"
     }
 
 @app.post("/auditar")
 async def auditar_desenho(file: UploadFile = File(...)) -> Dict[str, Any]:
-    """
-    Recebe o arquivo de projeto, executa os 5 verificadores e devolve
-    o laudo de conformidade consolidado com as posições dos erros.
-    """
     filename = file.filename or "desenho.dxf"
     ext = os.path.splitext(filename)[1].lower()
 
@@ -64,53 +52,49 @@ async def auditar_desenho(file: UploadFile = File(...)) -> Dict[str, Any]:
             detail="Formato inválido. O sistema aceita apenas arquivos .dxf ou .dwg."
         )
 
-    # Gravação do arquivo em pasta temporária para processamento
     with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
         shutil.copyfileobj(file.file, tmp)
         tmp_path = tmp.name
 
     try:
-        # Carregamento do documento CAD via ezdxf
         doc = ezdxf.readfile(tmp_path)
 
-        # 1. Execução dos 5 módulos de auditoria
+        # 1. Execução dos verificadores
         dim_res = DimensionChecker(tolerance_mm=1.0).check(doc)
         lay_res = LayerChecker().check(doc)
         bom_res = BOMChecker(tolerance_pct=5.0).check(doc)
         txt_res = TextChecker().check(doc)
         std_res = StandardChecker().check(doc)
 
-        # 2. Consolidação de todas as inconformidades
+        # 2. Consolidação de inconformidades
         todas_inconformidades: List[Dict[str, Any]] = (
-            dim_res["inconformidades"]
-            + lay_res["inconformidades"]
-            + bom_res["inconformidades"]
-            + txt_res["inconformidades"]
-            + std_res["inconformidades"]
+            dim_res.get("inconformidades", [])
+            + lay_res.get("inconformidades", [])
+            + bom_res.get("inconformidades", [])
+            + txt_res.get("inconformidades", [])
+            + std_res.get("inconformidades", [])
         )
 
-        # Ordenação por nível de severidade (críticos primeiro)
         todas_inconformidades.sort(
             key=lambda x: SEVERITY_WEIGHT.get(x.get("gravidade", "BAIXA"), 0),
             reverse=True
         )
 
-        # 3. Contagem por nível de gravidade
         criticos = sum(1 for err in todas_inconformidades if err.get("gravidade") == "CRITICA")
         altas = sum(1 for err in todas_inconformidades if err.get("gravidade") == "ALTA")
         medias = sum(1 for err in todas_inconformidades if err.get("gravidade") == "MEDIA")
 
-        # 4. Cálculo da pontuação média de conformidade
+        # 3. Cálculo tolerante a falhas das notas percentuais
         scores = [
-            dim_res["conformidade_percentual"],
-            lay_res["conformidade_percentual"],
-            bom_res["conformidade_percentual"],
-            txt_res["conformidade_percentual"],
-            std_res["conformidade_percentual"]
+            dim_res.get("conformidade_percentual", 100.0),
+            lay_res.get("conformidade_percentual", 100.0),
+            bom_res.get("conformidade_percentual", 100.0),
+            txt_res.get("conformidade_percentual", 100.0),
+            std_res.get("conformidade_percentual", 100.0)
         ]
         score_geral = round(sum(scores) / len(scores), 1)
 
-        # 5. Definição do veredito técnico
+        # 4. Status final do projeto
         if criticos > 0:
             status_geral = "REPROVADO"
         elif altas > 0 or medias > 2:
@@ -141,7 +125,7 @@ async def auditar_desenho(file: UploadFile = File(...)) -> Dict[str, Any]:
     except ezdxf.DXFStructureError as e:
         raise HTTPException(
             status_code=422,
-            detail=f"Arquivo CAD corrompido ou com estrutura inválida: {str(e)}"
+            detail=f"Arquivo DXF corrompido ou formato incompatível: {str(e)}"
         )
     except Exception as e:
         raise HTTPException(
@@ -149,7 +133,6 @@ async def auditar_desenho(file: UploadFile = File(...)) -> Dict[str, Any]:
             detail=f"Erro interno durante a análise do desenho: {str(e)}"
         )
     finally:
-        # Limpeza do arquivo temporário do servidor
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
 
