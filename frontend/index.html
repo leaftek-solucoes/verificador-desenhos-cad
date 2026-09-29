@@ -3,15 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LeafTek CAD QA/QC - Validador Automatizado de Projetos</title>
+  <title>LeafTek CAD QA/QC - Validador de Projetos</title>
   
-  <!-- Fontes e Bibliotecas CDN -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
   
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
   <script>
@@ -19,22 +17,8 @@
       theme: {
         extend: {
           colors: {
-            leaf: {
-              50: '#e6fff4',
-              400: '#26ffa7',
-              500: '#00F298',
-              600: '#00c77a',
-              900: '#004d2e'
-            },
-            cad: {
-              bg: '#080C14',
-              surface: '#0E1422',
-              card: '#141D30',
-              border: '#1F2C47',
-              text: '#94A3B8',
-              grid: '#131D33',
-              laser: '#00F298'
-            }
+            leaf: { 400: '#26ffa7', 500: '#00F298', 600: '#00c77a' },
+            cad: { bg: '#080C14', surface: '#0E1422', card: '#141D30', border: '#1F2C47', text: '#94A3B8' }
           },
           fontFamily: {
             sans: ['Inter', 'sans-serif'],
@@ -45,826 +29,209 @@
       }
     }
   </script>
-
-  <style>
-    body {
-      background-color: #080C14;
-      color: #E2E8F0;
-      font-family: 'Inter', sans-serif;
-    }
-    .custom-scroll::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    .custom-scroll::-webkit-scrollbar-track {
-      background: #0E1422;
-    }
-    .custom-scroll::-webkit-scrollbar-thumb {
-      background: #1F2C47;
-      border-radius: 4px;
-    }
-    .custom-scroll::-webkit-scrollbar-thumb:hover {
-      background: #00F298;
-    }
-    @keyframes pulse-ring {
-      0% { transform: scale(0.9); opacity: 0.9; }
-      50% { transform: scale(1.15); opacity: 0.4; }
-      100% { transform: scale(0.9); opacity: 0.9; }
-    }
-    .redline-pulse {
-      animation: pulse-ring 2s infinite ease-in-out;
-    }
-  </style>
 </head>
-<body class="min-h-screen flex flex-col custom-scroll selection:bg-leaf-500 selection:text-black">
+<body class="min-h-screen bg-cad-bg text-slate-200 font-sans flex flex-col justify-between selection:bg-leaf-500 selection:text-black">
 
-  <!-- Cabeçalho Executivo -->
-  <header class="bg-cad-surface border-b border-cad-border px-6 py-3 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-50 shadow-2xl">
-    <div class="flex items-center gap-4">
-      <div class="flex items-center gap-2">
-        <div class="w-9 h-9 rounded-lg bg-leaf-500/10 border border-leaf-500/30 flex items-center justify-center text-leaf-500 font-display font-bold text-xl shadow-[0_0_15px_rgba(0,242,152,0.25)]">
-          <i class="fa-solid fa-draw-polygon"></i>
-        </div>
-        <div>
-          <div class="flex items-center gap-2">
-            <span class="font-display font-bold text-white text-lg tracking-wide">LEAF<span class="text-leaf-500">TEK</span></span>
-            <span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-leaf-500/10 text-leaf-500 border border-leaf-500/20 font-bold">QA/QC Engine v1.0.1</span>
-          </div>
-          <p class="text-xs text-cad-text">Auditoria Automatizada de Projetos Industriais</p>
-        </div>
+  <!-- Header Compacto -->
+  <header class="bg-cad-surface border-b border-cad-border px-6 py-3 flex items-center justify-between shadow-lg">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-leaf-500/10 border border-leaf-500/30 flex items-center justify-center text-leaf-500 font-bold">
+        <i class="fa-solid fa-stamp"></i>
+      </div>
+      <div>
+        <span class="font-display font-bold text-white tracking-wide">LEAF<span class="text-leaf-500">TEK</span></span>
+        <span class="text-[10px] font-mono ml-2 px-1.5 py-0.5 rounded bg-cad-card border border-cad-border text-leaf-500 font-bold">QA/QC A3 ENGINE</span>
       </div>
     </div>
 
-    <!-- Barra de Conexão com API e Saldo de Créditos -->
+    <!-- Endpoint API e Créditos -->
     <div class="flex items-center gap-3">
-      <!-- Input de Configuração da URL da API -->
-      <div class="hidden sm:flex items-center gap-2 bg-cad-card border border-cad-border px-3 py-1.5 rounded-lg text-xs font-mono">
-        <span class="w-2 h-2 rounded-full bg-leaf-500 animate-ping"></span>
-        <span class="text-cad-text">API:</span>
-        <input type="text" id="apiEndpointInput" value="http://localhost:8000" class="bg-transparent border-none outline-none text-white w-56 truncate" placeholder="URL da API">
-        <button id="btnSaveApiUrl" class="text-leaf-500 hover:text-white" title="Salvar Endereço">
-          <i class="fa-solid fa-floppy-disk"></i>
-        </button>
+      <div class="hidden md:flex items-center gap-2 bg-cad-card border border-cad-border px-3 py-1.5 rounded-lg text-xs font-mono">
+        <span class="w-2 h-2 rounded-full bg-leaf-500 animate-pulse"></span>
+        <input type="text" id="apiEndpointInput" value="http://localhost:8000" class="bg-transparent border-none outline-none text-white w-52 truncate">
+        <button id="btnSaveApi" class="text-leaf-500 hover:text-white" title="Salvar URL"><i class="fa-solid fa-check"></i></button>
       </div>
 
-      <!-- Saldo de Créditos e Recarga -->
-      <div class="flex items-center gap-2 bg-cad-card border border-cad-border px-3 py-1.5 rounded-lg">
-        <i class="fa-solid fa-bolt text-leaf-500 text-xs"></i>
-        <div class="text-xs">
-          <span class="text-cad-text">Créditos:</span>
-          <span id="creditBalance" class="text-white font-mono font-bold ml-1">12</span>
-        </div>
-        <button onclick="toggleModal('creditsModal')" class="ml-2 text-xs bg-leaf-500 text-black px-2 py-0.5 rounded font-semibold hover:bg-leaf-400 transition-colors">
-          + Recarregar
-        </button>
+      <div class="flex items-center gap-2 bg-cad-card border border-cad-border px-3 py-1.5 rounded-lg text-xs font-mono">
+        <i class="fa-solid fa-coins text-leaf-500"></i>
+        <span>Créditos: <strong id="creditCount" class="text-white">12</strong></span>
       </div>
     </div>
   </header>
 
-  <!-- Área Principal do Workspace -->
-  <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 lg:p-6 overflow-hidden max-w-[1920px] mx-auto w-full">
+  <!-- Container Central Minimalista -->
+  <main class="max-w-4xl w-full mx-auto p-4 md:p-6 flex-1 flex flex-col justify-center gap-6">
 
-    <!-- Coluna Esquerda: Upload, Controles e Terminal (4 colunas) -->
-    <div class="lg:col-span-4 flex flex-col gap-4">
-      
-      <!-- Card de Upload do Arquivo -->
-      <div class="bg-cad-surface border border-cad-border rounded-xl p-5 shadow-lg flex flex-col gap-4">
-        <div class="flex items-center justify-between">
-          <h2 class="text-sm font-semibold uppercase tracking-wider text-white flex items-center gap-2">
-            <i class="fa-solid fa-file-arrow-up text-leaf-500"></i> Entrada de Arquivo CAD
-          </h2>
-          <span class="text-[11px] font-mono text-cad-text">.DXF / .DWG</span>
+    <!-- Card Principal de Upload -->
+    <div class="bg-cad-surface border border-cad-border rounded-2xl p-6 shadow-2xl flex flex-col gap-5">
+      <div class="flex items-center justify-between border-b border-cad-border/60 pb-3">
+        <div>
+          <h1 class="text-base font-bold text-white">Verificação Técnica de Desenhos</h1>
+          <p class="text-xs text-cad-text">Geração automática de cópia de verificação em prancha A3 com marcações.</p>
         </div>
-
-        <!-- Zona Drag & Drop -->
-        <div id="dropZone" class="border-2 border-dashed border-cad-border hover:border-leaf-500/70 rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-all bg-cad-card/50 hover:bg-leaf-500/5 group">
-          <input type="file" id="fileInput" accept=".dxf,.dwg" class="hidden">
-          <div class="w-12 h-12 rounded-full bg-cad-border/50 group-hover:bg-leaf-500/20 flex items-center justify-center text-cad-text group-hover:text-leaf-500 text-xl transition-all mb-3">
-            <i class="fa-solid fa-cloud-arrow-up"></i>
-          </div>
-          <p class="text-sm font-medium text-white mb-1">Arraste o arquivo ou <span class="text-leaf-500 underline">clique aqui</span></p>
-          <p class="text-xs text-cad-text">Suporte nativo a pranchas de detalhamento e Model Space</p>
-        </div>
-
-        <div id="selectedFileInfo" class="hidden bg-cad-card border border-leaf-500/30 rounded-lg p-3 flex items-center justify-between">
-          <div class="flex items-center gap-3 overflow-hidden">
-            <i class="fa-solid fa-file-code text-leaf-500 text-lg"></i>
-            <div class="truncate">
-              <p id="fileNameLabel" class="text-xs font-semibold text-white truncate">desenho.dxf</p>
-              <p id="fileSizeLabel" class="text-[10px] font-mono text-cad-text">0 KB</p>
-            </div>
-          </div>
-          <button id="btnRemoveFile" class="text-cad-text hover:text-red-400 p-1">
-            <i class="fa-solid fa-xmark"></i>
-          </button>
-        </div>
-
-        <button id="btnRunAudit" class="w-full bg-leaf-500 hover:bg-leaf-400 text-black font-semibold py-3 rounded-lg flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(0,242,152,0.2)] transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-          <i class="fa-solid fa-microchip"></i>
-          <span>Executar Auditoria de Projeto</span>
-        </button>
+        <span class="text-[11px] font-mono bg-cad-card px-2.5 py-1 rounded text-cad-text border border-cad-border">DWG / DXF</span>
       </div>
 
-      <!-- Console / Terminal de Processamento em Tempo Real -->
-      <div class="bg-cad-surface border border-cad-border rounded-xl p-4 shadow-lg flex-1 flex flex-col min-h-[220px]">
-        <div class="flex items-center justify-between pb-2 border-b border-cad-border mb-2">
-          <div class="flex items-center gap-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-red-500/80"></span>
-            <span class="w-2.5 h-2.5 rounded-full bg-yellow-500/80"></span>
-            <span class="w-2.5 h-2.5 rounded-full bg-leaf-500/80"></span>
-            <span class="text-xs font-mono text-cad-text ml-2">Console QA/QC</span>
-          </div>
-          <span id="auditTimer" class="text-[11px] font-mono text-leaf-500">0.00s</span>
+      <!-- Zona de Upload -->
+      <div id="dropZone" class="border-2 border-dashed border-cad-border hover:border-leaf-500/60 rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all bg-cad-card/30 hover:bg-leaf-500/5 group">
+        <input type="file" id="fileInput" accept=".dxf,.dwg" class="hidden">
+        <div class="w-12 h-12 rounded-xl bg-cad-card border border-cad-border group-hover:border-leaf-500/40 flex items-center justify-center text-cad-text group-hover:text-leaf-500 text-xl transition-all mb-3">
+          <i class="fa-solid fa-file-circle-check"></i>
         </div>
-        <div id="terminalLog" class="flex-1 overflow-y-auto font-mono text-xs text-cad-text space-y-1.5 custom-scroll pr-1">
-          <p class="text-cad-text/60">> Sistema inicializado e pronto para análise.</p>
-          <p class="text-cad-text/60">> Carregue um desenho .dxf para iniciar a varredura.</p>
-        </div>
+        <p class="text-sm font-semibold text-white mb-1">Arraste o arquivo ou <span class="text-leaf-500 underline">clique para selecionar</span></p>
+        <p class="text-xs text-cad-text">AutoCAD e Advance Steel (Model Space e Layouts)</p>
       </div>
 
+      <!-- Card do Arquivo Selecionado -->
+      <div id="fileSelectedBar" class="hidden bg-cad-card border border-leaf-500/30 rounded-xl p-3.5 flex items-center justify-between">
+        <div class="flex items-center gap-3 overflow-hidden">
+          <i class="fa-solid fa-file-lines text-leaf-500 text-lg"></i>
+          <div class="truncate">
+            <p id="fileNameTxt" class="text-xs font-bold text-white truncate">-</p>
+            <p id="fileSizeTxt" class="text-[10px] font-mono text-cad-text">0 KB</p>
+          </div>
+        </div>
+        <button id="btnRemoveFile" class="text-cad-text hover:text-red-400 p-1 text-sm"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <!-- Botão de Ação -->
+      <button id="btnRunCheck" class="w-full bg-leaf-500 hover:bg-leaf-400 text-black font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(0,242,152,0.15)] transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+        <i class="fa-solid fa-bolt"></i>
+        <span>Executar Auditoria e Gerar Prancha A3</span>
+      </button>
     </div>
 
-    <!-- Coluna Central: Visualizador Gráfico CAD (5 colunas) -->
-    <div class="lg:col-span-5 flex flex-col gap-4">
-      <div class="bg-cad-surface border border-cad-border rounded-xl p-4 shadow-lg flex-1 flex flex-col">
+    <!-- Painel de Resultados (Aparece após execução) -->
+    <div id="resultsPanel" class="hidden bg-cad-surface border border-cad-border rounded-2xl p-6 shadow-2xl flex flex-col gap-5">
+      <div class="flex items-center justify-between pb-3 border-b border-cad-border">
+        <div class="flex items-center gap-3">
+          <span id="badgeVerdict" class="text-xs font-mono font-bold px-3 py-1 rounded bg-red-500/20 text-red-400 border border-red-500/30">REPROVADO</span>
+          <span id="scoreConformidade" class="text-xs font-mono text-cad-text">Conformidade: <strong class="text-white">0%</strong></span>
+        </div>
         
-        <!-- Barra Superior do Canvas -->
-        <div class="flex items-center justify-between mb-3 pb-2 border-b border-cad-border">
-          <div class="flex items-center gap-3">
-            <span class="text-xs font-semibold text-white flex items-center gap-2">
-              <i class="fa-solid fa-compass-drafting text-leaf-500"></i> Visualizador de Prancha
-            </span>
-            <span id="canvasStatusBadge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-cad-card text-cad-text border border-cad-border">
-              Aguardando Desenho
-            </span>
-          </div>
-          <div class="flex items-center gap-2 text-xs font-mono text-cad-text">
-            <span>X: <span id="coordX" class="text-white">0.00</span></span>
-            <span>Y: <span id="coordY" class="text-white">0.00</span></span>
-          </div>
-        </div>
+        <!-- Botão Principal de Download A3 -->
+        <a id="btnDownloadA3Pdf" href="#" target="_blank" class="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-4 py-2 rounded-xl text-xs font-bold font-mono flex items-center gap-2 transition-all">
+          <i class="fa-solid fa-file-pdf text-sm"></i>
+          <span>Baixar Cópia de Verificação A3</span>
+        </a>
+      </div>
 
-        <!-- Canvas Gráfico Interativo -->
-        <div class="relative flex-1 bg-cad-bg border border-cad-border/60 rounded-lg overflow-hidden flex items-center justify-center min-h-[380px]">
-          <canvas id="cadCanvas" class="w-full h-full cursor-crosshair"></canvas>
-
-          <!-- Laser Scanner Animado durante Análise -->
-          <div id="laserScanner" class="hidden absolute left-0 right-0 h-0.5 bg-leaf-500 shadow-[0_0_15px_#00F298] pointer-events-none transition-all"></div>
-
-          <!-- Legenda Flutuante de Cores -->
-          <div class="absolute bottom-3 left-3 bg-cad-card/90 backdrop-blur-md border border-cad-border px-3 py-2 rounded-lg flex items-center gap-4 text-[11px] font-mono">
-            <div class="flex items-center gap-1.5">
-              <span class="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]"></span>
-              <span>Crítico</span>
-            </div>
-            <div class="flex items-center gap-1.5">
-              <span class="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_8px_#fbbf24]"></span>
-              <span>Alto / Médio</span>
-            </div>
-            <div class="flex items-center gap-1.5">
-              <span class="w-2.5 h-2.5 rounded-full bg-leaf-500 shadow-[0_0_8px_#00F298]"></span>
-              <span>Aprovado</span>
-            </div>
-          </div>
-        </div>
+      <!-- Lista Resumida de Inconformidades -->
+      <div>
+        <h3 class="text-xs uppercase font-mono text-cad-text tracking-wider mb-3">Observações a serem modificadas pelo projetista:</h3>
+        <div id="issuesContainer" class="space-y-2 max-h-60 overflow-y-auto pr-1"></div>
       </div>
     </div>
 
-    <!-- Coluna Direita: Laudo Técnico, Score e Inconformidades (3 colunas) -->
-    <div class="lg:col-span-3 flex flex-col gap-4">
-      
-      <!-- Card do Score e Veredito -->
-      <div class="bg-cad-surface border border-cad-border rounded-xl p-5 shadow-lg flex flex-col gap-4">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-white flex items-center justify-between">
-          <span>Laudo Técnico</span>
-          <span id="finalVerdictBadge" class="text-xs px-2.5 py-0.5 rounded font-mono font-bold bg-cad-card text-cad-text border border-cad-border">
-            PENDENTE
-          </span>
-        </h2>
-
-        <!-- Medidor Circular de Conformidade -->
-        <div class="flex items-center justify-center py-2">
-          <div class="relative w-36 h-36 flex items-center justify-center">
-            <svg class="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-              <circle cx="50" cy="50" r="42" stroke="currentColor" stroke-width="8" class="text-cad-card" fill="transparent"/>
-              <circle id="scoreCircle" cx="50" cy="50" r="42" stroke="currentColor" stroke-width="8" class="text-leaf-500 transition-all duration-1000 ease-out" stroke-dasharray="264" stroke-dashoffset="264" stroke-linecap="round" fill="transparent"/>
-            </svg>
-            <div class="absolute flex flex-col items-center justify-center text-center">
-              <span id="scoreText" class="text-2xl font-bold font-display text-white">0%</span>
-              <span class="text-[10px] uppercase font-mono text-cad-text">Conformidade</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Contadores de Erro por Gravidade -->
-        <div class="grid grid-cols-3 gap-2 text-center font-mono">
-          <div class="bg-cad-card p-2 rounded-lg border border-red-500/20">
-            <p class="text-[10px] text-cad-text uppercase">Críticos</p>
-            <p id="countCriticos" class="text-base font-bold text-red-400">0</p>
-          </div>
-          <div class="bg-cad-card p-2 rounded-lg border border-amber-500/20">
-            <p class="text-[10px] text-cad-text uppercase">Altos</p>
-            <p id="countAltos" class="text-base font-bold text-amber-400">0</p>
-          </div>
-          <div class="bg-cad-card p-2 rounded-lg border border-blue-500/20">
-            <p class="text-[10px] text-cad-text uppercase">Médios</p>
-            <p id="countMedios" class="text-base font-bold text-blue-400">0</p>
-          </div>
-        </div>
-
-        <!-- Botão de Download do PDF Oficial -->
-        <button id="btnExportPDF" disabled class="w-full bg-cad-card hover:bg-cad-border text-white border border-cad-border hover:border-leaf-500 font-semibold py-2.5 rounded-lg flex items-center justify-center gap-2 text-xs transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-          <i class="fa-solid fa-file-pdf text-red-400"></i>
-          <span>Exportar Laudo Oficial em PDF</span>
-        </button>
-      </div>
-
-      <!-- Lista de Não Conformidades Detectadas -->
-      <div class="bg-cad-surface border border-cad-border rounded-xl p-4 shadow-lg flex-1 flex flex-col">
-        <div class="flex items-center justify-between pb-2 border-b border-cad-border mb-3">
-          <h3 class="text-xs font-semibold text-white uppercase tracking-wider flex items-center gap-2">
-            <i class="fa-solid fa-triangle-exclamation text-amber-400"></i>
-            Inconformidades (<span id="totalErrorsCount">0</span>)
-          </h3>
-        </div>
-
-        <div id="issuesList" class="flex-1 overflow-y-auto space-y-2.5 pr-1 custom-scroll max-h-[360px]">
-          <div class="text-center py-10 text-cad-text/50 text-xs">
-            <i class="fa-solid fa-circle-check text-2xl mb-2 block"></i>
-            Nenhuma verificação executada ainda.
-          </div>
-        </div>
-      </div>
-
-    </div>
   </main>
 
-  <!-- Modal de Recarga de Créditos (Pix e Planos) -->
-  <div id="creditsModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="bg-cad-surface border border-cad-border rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
-      <button onclick="toggleModal('creditsModal')" class="absolute top-4 right-4 text-cad-text hover:text-white">
-        <i class="fa-solid fa-xmark text-lg"></i>
-      </button>
+  <footer class="text-center py-3 text-[11px] font-mono text-cad-text border-t border-cad-border/40">
+    LeafTek QA/QC Platform • Desenvolvido para Auditoria Executiva de Engenharia
+  </footer>
 
-      <div class="flex items-center gap-3 mb-4">
-        <div class="w-10 h-10 rounded-xl bg-leaf-500/10 border border-leaf-500/30 flex items-center justify-center text-leaf-500">
-          <i class="fa-brands fa-pix text-xl"></i>
-        </div>
-        <div>
-          <h3 class="font-display font-bold text-white text-base">Recarregar Créditos de Verificação</h3>
-          <p class="text-xs text-cad-text">Liberação imediata via Pix Automatizado</p>
-        </div>
-      </div>
-
-      <div class="space-y-3 mb-6">
-        <label class="block border border-leaf-500/50 bg-cad-card p-3 rounded-xl cursor-pointer hover:border-leaf-500 transition-colors">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <input type="radio" name="creditPlan" value="10" checked class="accent-leaf-500">
-              <span class="font-semibold text-white text-sm">Pacote Pro (10 Desenhos)</span>
-            </div>
-            <span class="font-mono font-bold text-leaf-500">R$ 99,00</span>
-          </div>
-          <p class="text-[11px] text-cad-text mt-1 ml-6">R$ 9,90 por desenho auditado com laudo PDF</p>
-        </label>
-
-        <label class="block border border-cad-border bg-cad-card p-3 rounded-xl cursor-pointer hover:border-leaf-500 transition-colors">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <input type="radio" name="creditPlan" value="1" class="accent-leaf-500">
-              <span class="font-semibold text-white text-sm">Crédito Avulso (1 Desenho)</span>
-            </div>
-            <span class="font-mono font-bold text-white">R$ 15,00</span>
-          </div>
-          <p class="text-[11px] text-cad-text mt-1 ml-6">Validação unitária imediata</p>
-        </label>
-      </div>
-
-      <button id="btnSimulatePixPay" class="w-full bg-leaf-500 hover:bg-leaf-400 text-black font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition-all">
-        <i class="fa-solid fa-qrcode"></i>
-        <span>Gerar Pix e Adicionar Créditos</span>
-      </button>
-    </div>
-  </div>
-
-  <!-- Script Lógico Integrado -->
   <script>
-    // Estado Global da Aplicação
-    let currentFile = null;
-    let auditResult = null;
-    let credits = parseInt(localStorage.getItem('leaftek_credits') || '12');
+    let selectedFile = null;
+    let credits = parseInt(localStorage.getItem('leaf_credits') || '12');
 
-    // Elementos da Interface
     const dropZone = document.getElementById('dropZone');
     const fileInput = document.getElementById('fileInput');
-    const selectedFileInfo = document.getElementById('selectedFileInfo');
-    const fileNameLabel = document.getElementById('fileNameLabel');
-    const fileSizeLabel = document.getElementById('fileSizeLabel');
+    const fileSelectedBar = document.getElementById('fileSelectedBar');
+    const fileNameTxt = document.getElementById('fileNameTxt');
+    const fileSizeTxt = document.getElementById('fileSizeTxt');
     const btnRemoveFile = document.getElementById('btnRemoveFile');
-    const btnRunAudit = document.getElementById('btnRunAudit');
-    const terminalLog = document.getElementById('terminalLog');
-    const auditTimer = document.getElementById('auditTimer');
-    const cadCanvas = document.getElementById('cadCanvas');
-    const ctx = cadCanvas.getContext('2d');
-    const laserScanner = document.getElementById('laserScanner');
-    const scoreCircle = document.getElementById('scoreCircle');
-    const scoreText = document.getElementById('scoreText');
-    const finalVerdictBadge = document.getElementById('finalVerdictBadge');
-    const countCriticos = document.getElementById('countCriticos');
-    const countAltos = document.getElementById('countAltos');
-    const countMedios = document.getElementById('countMedios');
-    const totalErrorsCount = document.getElementById('totalErrorsCount');
-    const issuesList = document.getElementById('issuesList');
-    const btnExportPDF = document.getElementById('btnExportPDF');
+    const btnRunCheck = document.getElementById('btnRunCheck');
+    const resultsPanel = document.getElementById('resultsPanel');
+    const badgeVerdict = document.getElementById('badgeVerdict');
+    const scoreConformidade = document.getElementById('scoreConformidade');
+    const issuesContainer = document.getElementById('issuesContainer');
+    const btnDownloadA3Pdf = document.getElementById('btnDownloadA3Pdf');
     const apiEndpointInput = document.getElementById('apiEndpointInput');
-    const coordX = document.getElementById('coordX');
-    const coordY = document.getElementById('coordY');
 
-    // Recupera Endpoint da API do LocalStorage
-    const savedApi = localStorage.getItem('leaftek_api_url');
+    const savedApi = localStorage.getItem('leaf_api');
     if (savedApi) apiEndpointInput.value = savedApi;
 
-    document.getElementById('btnSaveApiUrl').addEventListener('click', () => {
-      localStorage.setItem('leaftek_api_url', apiEndpointInput.value.trim());
-      logTerminal(`Endpoint da API salvo: ${apiEndpointInput.value.trim()}`, 'success');
+    document.getElementById('btnSaveApi').addEventListener('click', () => {
+      localStorage.setItem('leaf_api', apiEndpointInput.value.trim());
+      alert('URL da API salva.');
     });
 
-    // Funções do Terminal
-    function logTerminal(message, type = 'info') {
-      const p = document.createElement('p');
-      const time = new Date().toLocaleTimeString('pt-BR');
-      let colorClass = 'text-cad-text';
-      if (type === 'success') colorClass = 'text-leaf-500 font-semibold';
-      if (type === 'error') colorClass = 'text-red-400 font-semibold';
-      if (type === 'warn') colorClass = 'text-amber-400';
-      
-      p.className = `${colorClass} leading-relaxed`;
-      p.innerHTML = `<span class="opacity-40">[${time}]</span> > ${message}`;
-      terminalLog.appendChild(p);
-      terminalLog.scrollTop = terminalLog.scrollHeight;
-    }
-
-    // Gerenciador de Modal
-    function toggleModal(id) {
-      const modal = document.getElementById(id);
-      modal.classList.toggle('hidden');
-    }
-
-    // Simulação de Recarga Pix
-    document.getElementById('btnSimulatePixPay').addEventListener('click', () => {
-      credits += 10;
-      localStorage.setItem('leaftek_credits', credits);
-      document.getElementById('creditBalance').innerText = credits;
-      toggleModal('creditsModal');
-      logTerminal("Pagamento Pix aprovado! +10 Créditos adicionados ao seu saldo.", 'success');
-    });
-
-    // Manipulação de Arquivos (Drag & Drop)
     dropZone.addEventListener('click', () => fileInput.click());
-
-    dropZone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      dropZone.classList.add('border-leaf-500', 'bg-leaf-500/10');
-    });
-
-    dropZone.addEventListener('dragleave', () => {
-      dropZone.classList.remove('border-leaf-500', 'bg-leaf-500/10');
-    });
-
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-leaf-500'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-leaf-500'));
     dropZone.addEventListener('drop', (e) => {
       e.preventDefault();
-      dropZone.classList.remove('border-leaf-500', 'bg-leaf-500/10');
-      if (e.dataTransfer.files.length) handleFileSelected(e.dataTransfer.files[0]);
+      dropZone.classList.remove('border-leaf-500');
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
     });
-
     fileInput.addEventListener('change', (e) => {
-      if (e.target.files.length) handleFileSelected(e.target.files[0]);
+      if (e.target.files.length) handleFile(e.target.files[0]);
     });
 
-    function handleFileSelected(file) {
-      const ext = file.name.split('.').pop().toLowerCase();
-      if (!['dxf', 'dwg'].includes(ext)) {
-        logTerminal(`Formato .${ext} não suportado. Envie um arquivo .DXF ou .DWG.`, 'error');
-        return;
-      }
-      currentFile = file;
-      fileNameLabel.innerText = file.name;
-      fileSizeLabel.innerText = `${(file.size / 1024).toFixed(1)} KB`;
+    function handleFile(f) {
+      selectedFile = f;
+      fileNameTxt.innerText = f.name;
+      fileSizeTxt.innerText = `${(f.size / 1024).toFixed(1)} KB`;
       dropZone.classList.add('hidden');
-      selectedFileInfo.classList.remove('hidden');
-      logTerminal(`Arquivo carregado: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
-      drawCADPreview([], file.name);
+      fileSelectedBar.classList.remove('hidden');
+      resultsPanel.classList.add('hidden');
     }
 
     btnRemoveFile.addEventListener('click', () => {
-      currentFile = null;
+      selectedFile = null;
       fileInput.value = '';
-      selectedFileInfo.classList.add('hidden');
+      fileSelectedBar.classList.add('hidden');
       dropZone.classList.remove('hidden');
-      clearCanvas();
-      logTerminal("Arquivo removido.");
+      resultsPanel.classList.add('hidden');
     });
 
-    // Execução da Auditoria via API
-    btnRunAudit.addEventListener('click', async () => {
-      if (!currentFile) {
-        logTerminal("Selecione um arquivo de desenho antes de iniciar.", 'warn');
-        return;
-      }
-
-      if (credits <= 0) {
-        logTerminal("Saldo de créditos insuficiente para realizar a auditoria.", 'error');
-        toggleModal('creditsModal');
-        return;
-      }
-
+    btnRunCheck.addEventListener('click', async () => {
+      if (!selectedFile) return alert('Selecione um arquivo .dxf ou .dwg.');
       const apiUrl = apiEndpointInput.value.trim().replace(/\/$/, "");
-      btnRunAudit.disabled = true;
-      btnExportPDF.disabled = true;
-      laserScanner.classList.remove('hidden');
 
-      let startTime = performance.now();
-      const timerInterval = setInterval(() => {
-        const elapsed = ((performance.now() - startTime) / 1000).toFixed(2);
-        auditTimer.innerText = `${elapsed}s`;
-      }, 50);
-
-      logTerminal(`Conectando à API: ${apiUrl}/auditar...`);
-      logTerminal("Iniciando motor de leitura e varredura ODA/ezdxf...");
+      btnRunCheck.disabled = true;
+      btnRunCheck.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processando Prancha A3...';
 
       const formData = new FormData();
-      formData.append("file", currentFile);
+      formData.append("file", selectedFile);
 
       try {
-        const response = await fetch(`${apiUrl}/auditar`, {
-          method: "POST",
-          body: formData
+        const res = await fetch(`${apiUrl}/auditar-a3`, { method: "POST", body: formData });
+        if (!res.ok) throw new Error(`Falha ${res.status}`);
+        const data = await res.json();
+
+        // Renderiza Resultados
+        badgeVerdict.innerText = data.status_geral;
+        badgeVerdict.className = data.status_geral === 'APROVADO' 
+          ? 'text-xs font-mono font-bold px-3 py-1 rounded bg-leaf-500/20 text-leaf-500 border border-leaf-500/40'
+          : 'text-xs font-mono font-bold px-3 py-1 rounded bg-red-500/20 text-red-400 border border-red-500/40';
+
+        scoreConformidade.innerHTML = `Conformidade: <strong class="text-white">${data.score_conformidade}%</strong> (${data.resumo_erros.total} notas)`;
+
+        issuesContainer.innerHTML = '';
+        data.inconformidades.forEach(err => {
+          const div = document.createElement('div');
+          div.className = 'p-3 rounded-lg bg-cad-card border border-cad-border flex items-start gap-3 text-xs';
+          div.innerHTML = `
+            <span class="px-2 py-0.5 rounded font-mono font-bold text-[10px] ${err.gravidade === 'CRITICA' ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}">${err.id}</span>
+            <div class="flex-1">
+              <strong class="text-white block">${err.tipo}</strong>
+              <span class="text-cad-text">${err.descricao}</span>
+            </div>
+          `;
+          issuesContainer.appendChild(div);
         });
 
-        if (!response.ok) {
-          const errData = await response.json().catch(() => ({}));
-          throw new Error(errData.detail || `Erro HTTP ${response.status}`);
-        }
-
-        const data = await response.json();
-        clearInterval(timerInterval);
-        laserScanner.classList.add('hidden');
-        btnRunAudit.disabled = false;
-
-        // Consome 1 crédito
-        credits = Math.max(0, credits - 1);
-        localStorage.setItem('leaftek_credits', credits);
-        document.getElementById('creditBalance').innerText = credits;
-
-        auditResult = data;
-        renderAuditResults(data);
+        // Link de download do PDF A3 gerado no backend
+        btnDownloadA3Pdf.href = `${apiUrl}/download-pdf/${data.pdf_filename}`;
+        resultsPanel.classList.remove('hidden');
 
       } catch (err) {
-        clearInterval(timerInterval);
-        laserScanner.classList.add('hidden');
-        btnRunAudit.disabled = false;
-        logTerminal(`Falha na comunicação com o backend: ${err.message}`, 'error');
-        logTerminal("Certifique-se de que a API está rodando e com a porta definida como 'Public' no Codespaces.", 'warn');
+        alert(`Erro ao comunicar com a API: ${err.message}`);
+      } finally {
+        btnRunCheck.disabled = false;
+        btnRunCheck.innerHTML = '<i class="fa-solid fa-bolt"></i> <span>Executar Auditoria e Gerar Prancha A3</span>';
       }
     });
-
-    // Renderização dos Resultados na Interface
-    function renderAuditResults(data) {
-      logTerminal(`Auditoria concluída com sucesso! Status: ${data.status_geral}`, data.status_geral === 'APROVADO' ? 'success' : 'error');
-      
-      // Atualiza Pontuação Circular
-      const score = data.score_conformidade || 0;
-      scoreText.innerText = `${score}%`;
-      const circleOffset = 264 - (264 * score / 100);
-      scoreCircle.style.strokeDashoffset = circleOffset;
-      scoreCircle.className = score >= 90 ? 'text-leaf-500' : (score >= 70 ? 'text-amber-400' : 'text-red-500');
-
-      // Veredito
-      finalVerdictBadge.innerText = data.status_geral;
-      if (data.status_geral === 'APROVADO') {
-        finalVerdictBadge.className = 'text-xs px-2.5 py-0.5 rounded font-mono font-bold bg-leaf-500/20 text-leaf-500 border border-leaf-500/40';
-      } else {
-        finalVerdictBadge.className = 'text-xs px-2.5 py-0.5 rounded font-mono font-bold bg-red-500/20 text-red-400 border border-red-500/40';
-      }
-
-      // Contadores
-      countCriticos.innerText = data.resumo_erros.criticos;
-      countAltos.innerText = data.resumo_erros.altos;
-      countMedios.innerText = data.resumo_erros.medios;
-      totalErrorsCount.innerText = data.inconformidades.length;
-
-      // Lista de Inconformidades
-      issuesList.innerHTML = '';
-      data.inconformidades.forEach((issue, idx) => {
-        const item = document.createElement('div');
-        const isCrit = issue.gravidade === 'CRITICA';
-        const isAlt = issue.gravidade === 'ALTA';
-        const borderCol = isCrit ? 'border-red-500/40 hover:border-red-500' : (isAlt ? 'border-amber-500/40 hover:border-amber-500' : 'border-blue-500/40 hover:border-blue-500');
-        const badgeCol = isCrit ? 'bg-red-500/20 text-red-400' : (isAlt ? 'bg-amber-500/20 text-amber-400' : 'bg-blue-500/20 text-blue-400');
-
-        item.className = `p-3 rounded-lg bg-cad-card border ${borderCol} transition-all cursor-pointer group`;
-        item.innerHTML = `
-          <div class="flex items-center justify-between mb-1">
-            <span class="text-[11px] font-mono font-bold text-white">${issue.id}</span>
-            <span class="text-[10px] font-mono px-2 py-0.5 rounded ${badgeCol} font-bold">${issue.gravidade}</span>
-          </div>
-          <p class="text-xs font-semibold text-white group-hover:text-leaf-500 transition-colors">${issue.tipo}</p>
-          <p class="text-[11px] text-cad-text mt-1 leading-snug">${issue.descricao}</p>
-          <div class="mt-2 flex items-center justify-between text-[10px] font-mono text-cad-text/60">
-            <span>Espaço: ${issue.espaco || 'Model'}</span>
-            <span>X: ${issue.posicao.x} | Y: ${issue.posicao.y}</span>
-          </div>
-        `;
-        item.addEventListener('click', () => {
-          highlightRedline(issue);
-        });
-        issuesList.appendChild(item);
-      });
-
-      btnExportPDF.disabled = false;
-      document.getElementById('canvasStatusBadge').innerText = `${data.inconformidades.length} Falhas Mapeadas`;
-      drawCADPreview(data.inconformidades, data.arquivo);
-    }
-
-    // Desenho Gráfico no Canvas com Normalização de Coordenadas
-    let canvasRedlines = [];
-
-    function resizeCanvas() {
-      const rect = cadCanvas.parentElement.getBoundingClientRect();
-      cadCanvas.width = rect.width;
-      cadCanvas.height = rect.height;
-    }
-    window.addEventListener('resize', () => {
-      resizeCanvas();
-      if (auditResult) drawCADPreview(auditResult.inconformidades, auditResult.arquivo);
-    });
-    resizeCanvas();
-
-    function clearCanvas() {
-      ctx.fillStyle = "#080C14";
-      ctx.fillRect(0, 0, cadCanvas.width, cadCanvas.height);
-      drawGrid();
-    }
-
-    function drawGrid() {
-      ctx.strokeStyle = "#131D33";
-      ctx.lineWidth = 1;
-      const step = 25;
-      for (let x = 0; x < cadCanvas.width; x += step) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, cadCanvas.height);
-        ctx.stroke();
-      }
-      for (let y = 0; y < cadCanvas.height; y += step) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(cadCanvas.width, y);
-        ctx.stroke();
-      }
-    }
-
-    function drawCADPreview(inconformidades = [], fileName = "") {
-      clearCanvas();
-      const w = cadCanvas.width;
-      const h = cadCanvas.height;
-
-      // Desenho de uma folha técnica de prancha esquemática
-      const sheetMargin = 30;
-      ctx.strokeStyle = "#1F2C47";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(sheetMargin, sheetMargin, w - (sheetMargin * 2), h - (sheetMargin * 2));
-
-      // Carimbo no canto inferior direito
-      const tbW = 180;
-      const tbH = 60;
-      const tbX = w - sheetMargin - tbW;
-      const tbY = h - sheetMargin - tbH;
-      ctx.strokeRect(tbX, tbY, tbW, tbH);
-      ctx.fillStyle = "#94A3B8";
-      ctx.font = "10px JetBrains Mono";
-      ctx.fillText(fileName.substring(0, 24) || "PRANCHA DE DETALHAMENTO", tbX + 8, tbY + 20);
-      ctx.fillText("ESCALA: 1:25 | MM", tbX + 8, tbY + 38);
-      ctx.fillText("STATUS: AUDITADO QA/QC", tbX + 8, tbY + 52);
-
-      // Esquema Estrutural de Referência (Galpão / Suporte)
-      ctx.strokeStyle = "#334155";
-      ctx.lineWidth = 1.5;
-      const cx = w / 2;
-      const cy = h / 2 - 15;
-
-      // Vigas e pilares esquemáticos
-      ctx.strokeRect(cx - 140, cy - 80, 280, 160);
-      ctx.beginPath();
-      ctx.moveTo(cx - 140, cy);
-      ctx.lineTo(cx + 140, cy);
-      ctx.moveTo(cx, cy - 80);
-      ctx.lineTo(cx, cy + 80);
-      ctx.stroke();
-
-      canvasRedlines = [];
-
-      if (!inconformidades.length) return;
-
-      // Normalização de Coordenadas DXF para Coordenadas do Canvas
-      const xs = inconformidades.map(e => e.posicao.x);
-      const ys = inconformidades.map(e => e.posicao.y);
-      let minX = Math.min(...xs);
-      let maxX = Math.max(...xs);
-      let minY = Math.min(...ys);
-      let maxY = Math.max(...ys);
-
-      if (maxX === minX) { minX -= 100; maxX += 100; }
-      if (maxY === minY) { minY -= 100; maxY += 100; }
-
-      const padX = 60;
-      const padY = 60;
-      const availableW = w - (padX * 2);
-      const availableH = h - (padY * 2);
-
-      inconformidades.forEach(err => {
-        const normX = (err.posicao.x - minX) / (maxX - minX);
-        const normY = 1.0 - ((err.posicao.y - minY) / (maxY - minY)); // Inverte Y do CAD
-
-        const posX = padX + (normX * availableW);
-        const posY = padY + (normY * availableH);
-
-        const isCrit = err.gravidade === "CRITICA";
-        const color = isCrit ? "#ef4444" : "#fbbf24";
-
-        // Desenho da Nuvem de Revisão (Redline)
-        drawRevisionCloud(ctx, posX, posY, 26, color);
-
-        // Marcador Central
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.arc(posX, posY, 4, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Tag do ID
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "bold 9px JetBrains Mono";
-        ctx.fillText(err.id, posX + 12, posY - 8);
-
-        canvasRedlines.push({
-          x: posX,
-          y: posY,
-          radius: 28,
-          data: err
-        });
-      });
-    }
-
-    function drawRevisionCloud(context, x, y, r, strokeColor) {
-      context.save();
-      context.strokeStyle = strokeColor;
-      context.lineWidth = 2;
-      context.beginPath();
-
-      const numArcs = 8;
-      const arcAngle = (Math.PI * 2) / numArcs;
-      for (let i = 0; i < numArcs; i++) {
-        const angle = i * arcAngle;
-        const arcX = x + Math.cos(angle) * r;
-        const arcY = y + Math.sin(angle) * r;
-        context.arc(arcX, arcY, r / 2.8, angle, angle + Math.PI);
-      }
-      context.stroke();
-      context.restore();
-    }
-
-    function highlightRedline(issue) {
-      logTerminal(`Inspeção de não conformidade [${issue.id}]: ${issue.descricao}`, 'warn');
-      const found = canvasRedlines.find(r => r.data.id === issue.id);
-      if (found) {
-        ctx.save();
-        ctx.strokeStyle = "#00F298";
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(found.x, found.y, 38, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-        setTimeout(() => {
-          if (auditResult) drawCADPreview(auditResult.inconformidades, auditResult.arquivo);
-        }, 1200);
-      }
-    }
-
-    // Leitura das coordenadas do mouse no Canvas
-    cadCanvas.addEventListener('mousemove', (e) => {
-      const rect = cadCanvas.getBoundingClientRect();
-      const x = (e.clientX - rect.left).toFixed(1);
-      const y = (e.clientY - rect.top).toFixed(1);
-      coordX.innerText = x;
-      coordY.innerText = y;
-    });
-
-    // Emissão do Laudo Técnico Oficial em PDF
-    btnExportPDF.addEventListener('click', () => {
-      if (!auditResult) return;
-
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF({
-        orientation: 'landscape',
-        unit: 'mm',
-        format: 'a4'
-      });
-
-      const w = 297;
-      const h = 210;
-
-      // Fundo Escuro Corporativo
-      doc.setFillColor(8, 12, 20);
-      doc.rect(0, 0, w, h, 'F');
-
-      // Borda Externa da Folha
-      doc.setDrawColor(31, 44, 71);
-      doc.setLineWidth(1);
-      doc.rect(10, 10, w - 20, h - 20);
-
-      // Cabeçalho Oficial LeafTek
-      doc.setTextColor(0, 242, 152);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(18);
-      doc.text("LEAFTEK QA/QC - LAUDO DE CONFORMIDADE TÉCNICA", 16, 22);
-
-      doc.setFontSize(9);
-      doc.setTextColor(148, 163, 184);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Arquivo: ${auditResult.arquivo} | Emissão: ${new Date().toLocaleString('pt-BR')}`, 16, 28);
-
-      // Carimbo de Status
-      const isReprovado = auditResult.status_geral.includes("REPROVADO");
-      doc.setFillColor(isReprovado ? 180 : 0, isReprovado ? 27 : 199, isReprovado ? 39 : 122);
-      doc.roundedRect(w - 75, 14, 60, 15, 2, 2, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11);
-      doc.text(auditResult.status_geral, w - 45, 23.5, { align: 'center' });
-
-      // Resumo de Métricas
-      doc.setFillColor(14, 20, 34);
-      doc.roundedRect(16, 36, w - 32, 18, 2, 2, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(9);
-      doc.text(`Score de Conformidade: ${auditResult.score_conformidade}%`, 22, 47);
-      doc.text(`Total de Falhas: ${auditResult.resumo_erros.total}`, 95, 47);
-      doc.setTextColor(239, 68, 68);
-      doc.text(`Críticos: ${auditResult.resumo_erros.criticos}`, 155, 47);
-      doc.setTextColor(251, 191, 36);
-      doc.text(`Altos: ${auditResult.resumo_erros.altos}`, 200, 47);
-      doc.setTextColor(96, 165, 250);
-      doc.text(`Médios: ${auditResult.resumo_erros.medios}`, 245, 47);
-
-      // Tabela de Inconformidades
-      doc.setTextColor(0, 242, 152);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.text("REGISTRO DE NÃO CONFORMIDADES TÉCNICAS AUDITADAS:", 16, 64);
-
-      let rowY = 72;
-      doc.setFillColor(20, 29, 48);
-      doc.rect(16, rowY, w - 32, 8, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(8);
-      doc.text("ID", 20, rowY + 5.5);
-      doc.text("TIPO DA FALHA", 45, rowY + 5.5);
-      doc.text("GRAVIDADE", 95, rowY + 5.5);
-      doc.text("DESCRIÇÃO E AÇÃO CORRETIVA REQUERIDA", 125, rowY + 5.5);
-      doc.text("POSIÇÃO", 260, rowY + 5.5);
-
-      rowY += 10;
-      doc.setFont('helvetica', 'normal');
-      auditResult.inconformidades.slice(0, 10).forEach((err) => {
-        doc.setFillColor(14, 20, 34);
-        doc.rect(16, rowY - 2, w - 32, 9, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.text(err.id, 20, rowY + 4);
-        doc.text(err.tipo.substring(0, 28), 45, rowY + 4);
-
-        if (err.gravidade === 'CRITICA') doc.setTextColor(239, 68, 68);
-        else if (err.gravidade === 'ALTA') doc.setTextColor(251, 191, 36);
-        else doc.setTextColor(96, 165, 250);
-        doc.text(err.gravidade, 95, rowY + 4);
-
-        doc.setTextColor(148, 163, 184);
-        const desc = doc.splitTextToSize(err.descricao, 125);
-        doc.text(desc[0], 125, rowY + 4);
-        doc.text(`(${err.posicao.x}, ${err.posicao.y})`, 260, rowY + 4);
-        rowY += 10;
-      });
-
-      // Rodapé de Validação Digital
-      doc.setTextColor(100, 116, 139);
-      doc.setFontSize(8);
-      doc.text("Certificado Digital de Validação Estrutural emitido pelo Motor LeafTek CAD QA/QC. Documento rastreável.", 16, h - 16);
-      doc.text(`ID de Validação: ${Math.random().toString(36).substring(2, 12).toUpperCase()}`, w - 75, h - 16);
-
-      doc.save(`Laudo_QAQC_${auditResult.arquivo.replace(/\.[^/.]+$/, "")}.pdf`);
-      logTerminal("Arquivo PDF oficial gerado e transferido para o seu computador!", 'success');
-    });
-
-    clearCanvas();
   </script>
 </body>
 </html>
