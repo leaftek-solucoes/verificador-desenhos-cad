@@ -3,13 +3,11 @@ import ezdxf
 
 class StandardChecker:
     def __init__(self):
-        # Padrão ISO de pranchas em milímetros (tolerância de +/- 5 mm)
-        self.standard_sheet_sizes = {
-            "ISO A1": (841.0, 594.0),
-            "ISO A2": (594.0, 420.0),
-            "ISO A3": (420.0, 297.0),
-            "ISO A0": (1189.0, 841.0)
-        }
+        # Termos homologados para identificação de legendas e carimbos técnicos
+        self.title_block_keywords = [
+            "CARIMBO", "TITLE", "SELO", "LEGENDA", "FOLHA",
+            "FORMATO", "PRANCHA", "DRAFT", "VALE", "A3", "A1", "A2", "A0", "A4"
+        ]
 
     def check(self, doc: ezdxf.document.Drawing) -> Dict[str, Any]:
         issues: List[Dict[str, Any]] = []
@@ -19,18 +17,14 @@ class StandardChecker:
         title_block_found = False
         total_layouts = len(layouts)
 
-        # 1. Auditoria de Viewports destravadas no Paper Space
+        # 1. Auditoria nos Layouts (Paper Space)
         for layout in layouts:
-            viewports = layout.query("VIEWPORT")
-            for vp in viewports:
-                # Viewport com ID 1 é a viewport padrão do sistema da folha (ignora)
+            # Checagem de Viewports destravadas
+            for vp in layout.query("VIEWPORT"):
                 if vp.dxf.get("id", 0) <= 1:
                     continue
-
-                # Status bit 16384 (0x4000) indica Display Locked no AutoCAD DXF
                 status_flag = vp.dxf.get("status_flag", 0)
                 is_locked = bool(status_flag & 16384)
-
                 if not is_locked:
                     unlocked_viewports += 1
                     center = vp.dxf.get("center", [0, 0])
@@ -39,15 +33,23 @@ class StandardChecker:
                         "tipo": "Viewport Destravada",
                         "espaco": layout.name,
                         "gravidade": "ALTA",
-                        "descricao": f"Viewport no layout '{layout.name}' está com Display Locked = Não. Risco de alteração acidental de escala pelo desenhista.",
+                        "descricao": f"Viewport no layout '{layout.name}' com Display Locked = Não. Risco de alteração acidental de escala.",
                         "posicao": {"x": round(center[0], 2), "y": round(center[1], 2)}
                     })
 
-            # 2. Auditoria do Carimbo (Title Block) no Layout
-            # Procura por blocos inseridos no canto inferior direito do Layout
+            # Varredura de blocos de carimbo no layout
             for insert in layout.query("INSERT"):
                 block_name = insert.dxf.name.upper()
-                if any(tag in block_name for tag in ["CARIMBO", "TITLE", "SELO", "LEGENDA", "FOLHA"]):
+                if any(kw in block_name for kw in self.title_block_keywords):
+                    title_block_found = True
+                    break
+
+        # 2. Varredura alternativa no Model Space (caso o carimbo tenha sido inserido no Model)
+        if not title_block_found:
+            msp = doc.modelspace()
+            for insert in msp.query("INSERT"):
+                block_name = insert.dxf.name.upper()
+                if any(kw in block_name for kw in self.title_block_keywords):
                     title_block_found = True
                     break
 
@@ -55,10 +57,10 @@ class StandardChecker:
             issues.append({
                 "id": "STD-NO-TITLEBLOCK",
                 "tipo": "Carimbo Não Identificado",
-                "espaco": "Layouts",
+                "espaco": "Layouts / Model",
                 "gravidade": "CRITICA",
-                "descricao": "Bloco padrão de carimbo/legenda não localizado nos layouts do projeto.",
-                "posicao": {"x": 500.0, "y": 100.0}
+                "descricao": "Bloco padrão de carimbo/legenda homologado não localizado no desenho.",
+                "posicao": {"x": 0.0, "y": 0.0}
             })
 
         total_falhas = unlocked_viewports + (0 if title_block_found or total_layouts == 0 else 1)
