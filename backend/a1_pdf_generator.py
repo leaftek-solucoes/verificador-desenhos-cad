@@ -6,7 +6,7 @@ from typing import Dict, Any, List
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.patches import Circle, Rectangle
+from matplotlib.patches import Circle
 import numpy as np
 
 import ezdxf
@@ -14,18 +14,18 @@ from ezdxf.addons.drawing import RenderContext, Frontend
 from ezdxf.addons.drawing.matplotlib import MatplotlibBackend
 from ezdxf.addons.drawing.properties import LayoutProperties
 
-class A3VerificationPDFGenerator:
+class A1VerificationPDFGenerator:
     def __init__(self, output_dir: str = "temp_reports"):
         self.output_dir = output_dir
         os.makedirs(self.output_dir, exist_ok=True)
-        # Dimensões ISO A3 Paisagem (420 x 297 mm em polegadas a 300 DPI)
-        self.width_in = 420.0 / 25.4
-        self.height_in = 297.0 / 25.4
+        # Dimensões ISO A1 Paisagem (841 x 594 mm em polegadas)
+        self.width_in = 841.0 / 25.4   # ~33.110 pol
+        self.height_in = 594.0 / 25.4  # ~23.386 pol
 
-    def _draw_cloud(self, ax, cx: float, cy: float, radius: float = 45.0, num_arcs: int = 8, color: str = "#DC2626"):
-        """Nuvem de revisão vermelha compacta sobre o erro."""
+    def _draw_cloud(self, ax, cx: float, cy: float, radius: float = 55.0, num_arcs: int = 10, color: str = "#DC2626"):
+        """Nuvem de revisão técnica com arcos suaves ajustados para prancha A1."""
         arc_angle = (2 * math.pi) / num_arcs
-        arc_radius = radius * 0.40
+        arc_radius = radius * 0.38
 
         for i in range(num_arcs):
             angle = i * arc_angle
@@ -42,11 +42,11 @@ class A3VerificationPDFGenerator:
             ax.add_patch(patch)
 
     def _draw_verified_badge(self, ax, x: float, y: float):
-        """Marcador verde sutil indicando que a entidade foi auditada e aprovada."""
-        ax.plot(x, y, marker="o", markersize=3.5, color="#059669", zorder=15)
+        """Marcador verde sutil (check) para elementos verificados e sem erro."""
+        ax.plot(x, y, marker="o", markersize=4.2, color="#059669", zorder=15)
         ax.text(
             x, y, "✓",
-            fontsize=4.0,
+            fontsize=5.2,
             fontweight="bold",
             color="#FFFFFF",
             ha="center",
@@ -55,33 +55,34 @@ class A3VerificationPDFGenerator:
         )
 
     def _add_compact_stamp(self, fig, status: str, score: float, total_issues: int, verified_count: int, filename: str):
-        """Carimbo de verificação técnico, discreto e compacto."""
+        """Carimbo de verificação técnico calibrado para o canto inferior direito de prancha A1."""
         is_reprovado = "REPROVADO" in status
         stamp_color = "#DC2626" if is_reprovado else ("#D97706" if "RESSALVA" in status else "#059669")
         today = datetime.now().strftime("%d/%m/%Y %H:%M")
 
         stamp_text = (
-            f"LEAFTEK QA/QC | CÓPIA DE VERIFICAÇÃO TÉCNICA A3\n"
-            f"ARQUIVO: {filename[:28]} | EMISSÃO: {today}\n"
-            f"STATUS: {status} | CONFORMIDADE: {score}%\n"
-            f"✓ ELEMENTOS CONFORMES: {verified_count} | ✗ NOTAS A REVISAR: {total_issues}"
+            f"LEAFTEK QA/QC | CÓPIA DE VERIFICAÇÃO TÉCNICA A1\n"
+            f"ARQUIVO: {filename[:36]} | EMISSÃO: {today}\n"
+            f"STATUS DO PROJETO : {status} | CONFORMIDADE: {score}%\n"
+            f"✓ ELEMENTOS CONFORMES: {verified_count} | ✗ NOTAS A REVISAR: {total_issues}\n"
+            f"PADRÃO: ABNT NBR 8800 / DENSIDADE DO AÇO: 7.850 kg/m³"
         )
 
         fig.text(
-            0.985, 0.02,
+            0.988, 0.015,
             stamp_text,
-            fontsize=4.8,
+            fontsize=6.2,  # Proporcional a texto técnico de 2.2 mm impresso em folha A1
             fontfamily="monospace",
             fontweight="bold",
             color=stamp_color,
             ha="right",
             va="bottom",
             bbox=dict(
-                boxstyle="square,pad=0.4",
+                boxstyle="square,pad=0.5",
                 facecolor="#FFFFFF",
                 edgecolor=stamp_color,
-                linewidth=1.2,
-                alpha=0.95
+                linewidth=1.4,
+                alpha=0.96
             ),
             zorder=35
         )
@@ -90,7 +91,8 @@ class A3VerificationPDFGenerator:
         pdf_path = os.path.join(self.output_dir, output_filename)
 
         fig = plt.figure(figsize=(self.width_in, self.height_in), dpi=300)
-        ax = fig.add_axes([0.02, 0.02, 0.96, 0.96])
+        # Margem de 10 mm padrão de plotter em relação à borda física A1
+        ax = fig.add_axes([0.015, 0.015, 0.97, 0.97])
         ax.set_aspect("equal", adjustable="datalim")
         ax.axis("off")
 
@@ -103,14 +105,14 @@ class A3VerificationPDFGenerator:
         frontend = Frontend(ctx, backend)
         frontend.draw_layout(msp, layout_properties=layout_props, finalize=False)
 
-        # Mapeia coordenadas dos erros para não marcar como verde no mesmo local
+        # Mapeia coordenadas dos erros para não sobrepor marcador verde no mesmo nó
         inconformidades = audit_result.get("inconformidades", [])
         error_coords = set()
         for err in inconformidades:
             p = err.get("posicao", {})
             error_coords.add((round(float(p.get("x", 0)), 1), round(float(p.get("y", 0)), 1)))
 
-        # 1. MARCAÇÕES EM VERDE (Entidades verificadas e aprovadas)
+        # 1. MARCAÇÕES EM VERDE (Entidades verificadas e conformes)
         verified_items_count = 0
         for dim in msp.query("DIMENSION"):
             pt = getattr(dim.dxf, "text_midpoint", None) or getattr(dim.dxf, "defpoint", None)
@@ -128,7 +130,7 @@ class A3VerificationPDFGenerator:
                     self._draw_verified_badge(ax, pt[0], pt[1])
                     verified_items_count += 1
 
-        # 2. MARCAÇÕES EM VERMELHO (Falhas com texto e nuvem compactos)
+        # 2. MARCAÇÕES EM VERMELHO (Nuvens e Caixas de Chamada)
         notas_gerais = []
         for err in inconformidades:
             pos = err.get("posicao", {})
@@ -139,34 +141,34 @@ class A3VerificationPDFGenerator:
                 is_crit = err.get("gravidade") == "CRITICA"
                 color = "#DC2626" if is_crit else "#D97706"
 
-                # Nuvem menor e precisa
-                self._draw_cloud(ax, px, py, radius=40.0, color=color)
-                ax.plot(px, py, marker="x", markersize=4, color=color, zorder=25)
+                # Nuvem proporcional à geometria de prancha A1
+                self._draw_cloud(ax, px, py, radius=50.0, color=color)
+                ax.plot(px, py, marker="x", markersize=5, color=color, zorder=25)
 
-                # Caixa de chamada reduzida com texto sucinto
+                # Caixa de chamada reduzida e discreta
                 box_text = f"[{err.get('id')}] {err.get('tipo')}\n{err.get('descricao')}"
 
                 ax.annotate(
                     box_text,
                     xy=(px, py),
-                    xytext=(px + 45, py + 45),
+                    xytext=(px + 60, py + 60),
                     arrowprops=dict(
                         arrowstyle="->",
                         color=color,
-                        lw=0.9,
+                        lw=1.0,
                         shrinkA=3,
                         shrinkB=3
                     ),
-                    fontsize=4.0,  # Reduzido para proporção técnica discreta
+                    fontsize=5.2,  # Proporção exata para visualização limpa em A1
                     fontfamily="sans-serif",
                     fontweight="bold",
                     color="#7F1D1D" if is_crit else "#78350F",
                     bbox=dict(
-                        boxstyle="round,pad=0.25",
+                        boxstyle="round,pad=0.3",
                         fc="#FEF2F2" if is_crit else "#FFFBEB",
                         ec=color,
-                        lw=0.8,
-                        alpha=0.94
+                        lw=0.9,
+                        alpha=0.95
                     ),
                     zorder=28
                 )
@@ -175,38 +177,38 @@ class A3VerificationPDFGenerator:
 
         # 3. QUADRO COMPACTO DE NOTAS GERAIS NO TOPO ESQUERDO
         if notas_gerais:
-            linhas = ["NOTAS TÉCNICAS DA FOLHA:"]
-            for ng in notas_gerais[:4]:
+            linhas = ["QUADRO DE RESSALVAS GERAIS DA FOLHA:"]
+            for ng in notas_gerais[:6]:
                 linhas.append(f"• [{ng.get('id')}] {ng.get('descricao')}")
             texto_notas = "\n".join(linhas)
 
             fig.text(
-                0.03, 0.97,
+                0.02, 0.98,
                 texto_notas,
-                fontsize=4.8,
+                fontsize=5.8,
                 fontfamily="monospace",
                 fontweight="bold",
                 color="#DC2626",
                 ha="left",
                 va="top",
                 bbox=dict(
-                    boxstyle="square,pad=0.35",
+                    boxstyle="square,pad=0.45",
                     facecolor="#FEF2F2",
                     edgecolor="#DC2626",
-                    linewidth=1.0,
-                    alpha=0.92
+                    linewidth=1.2,
+                    alpha=0.94
                 ),
                 zorder=35
             )
 
-        # 4. CARIMBO COMPACTO
+        # 4. CARIMBO OFICIAL A1
         self._add_compact_stamp(
             fig,
             status=audit_result.get("status_geral", "REPROVADO"),
             score=audit_result.get("score_conformidade", 0.0),
             total_issues=len(inconformidades),
             verified_count=verified_items_count,
-            filename=audit_result.get("arquivo", "desenho.dxf")
+            filename=audit_result.get("arquivo", "desenho.dwg")
         )
 
         backend.finalize()
