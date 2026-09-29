@@ -7,6 +7,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import ezdxf
+from ezdxf import recover
 
 from dimension_checker import DimensionChecker
 from layer_checker import LayerChecker
@@ -18,7 +19,7 @@ from a1_pdf_generator import A1VerificationPDFGenerator
 app = FastAPI(
     title="LeafTek CAD QA/QC Engine",
     description="Motor de auditoria de projetos DWG/DXF com emissão de pranchas A1",
-    version="1.3.0"
+    version="1.3.1"
 )
 
 app.add_middleware(
@@ -39,53 +40,50 @@ SEVERITY_WEIGHT = {
     "BAIXA": 1
 }
 
+def localizar_executavel_dwg2dxf() -> str:
+    """Busca o executável dwg2dxf no PATH e em diretórios padrão do Linux."""
+    caminho = shutil.which("dwg2dxf")
+    if caminho:
+        return caminho
+    for padrao in ["/usr/bin/dwg2dxf", "/usr/local/bin/dwg2dxf"]:
+        if os.path.exists(padrao) and os.access(padrao, os.X_OK):
+            return padrao
+    raise RuntimeError(
+        "O utilitário 'dwg2dxf' (LibreDWG) não está instalado no servidor. "
+        "Execute no terminal: sudo apt update && sudo apt install -y libredwg-tools"
+    )
+
 def converter_dwg_para_dxf(dwg_path: str) -> str:
     """
-    Converte arquivos DWG para DXF via LibreDWG (dwg2dxf).
-    Trata códigos de alerta e executa tentativas com versões de compatibilidade.
+    Converte arquivos DWG para DXF via LibreDWG com sintaxe estrita e tolerância a avisos.
     """
+    executavel = localizar_executavel_dwg2dxf()
     dxf_path = os.path.splitext(dwg_path)[0] + ".dxf"
 
-    # Verifica se o LibreDWG está instalado no sistema operacional
-    if shutil.which("dwg2dxf") is None:
-        raise RuntimeError(
-            "O utilitário 'dwg2dxf' (LibreDWG) não está instalado no servidor. "
-            "Execute: sudo apt update && sudo apt install -y libredwg-tools"
-        )
-
-    # Tentativa 1: Conversão direta com substituição forçada
-    cmd_padrao = ["dwg2dxf", "-y", "-o", dxf_path, dwg_path]
+    # Comando seguro: -y (forçar overwrite), -o (arquivo de saída)
+    cmd = [executavel, "-y", "-o", dxf_path, dwg_path]
     try:
-        subprocess.run(
-            cmd_padrao,
+        res = subprocess.run(
+            cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            timeout=35
+            timeout=40
         )
         if os.path.exists(dxf_path) and os.path.getsize(dxf_path) > 100:
             return dxf_path
+
+        # Tentativa secundária: deixar o dwg2dxf gerar o DXF no mesmo diretório por padrão
+        cmd_simples = [executavel, "-y", dwg_path]
+        subprocess.run(cmd_simples, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=40)
+        if os.path.exists(dxf_path) and os.path.getsize(dxf_path) > 100:
+            return dxf_path
+
+        erro_detalhe = res.stderr.decode("utf-8", errors="ignore")
+        raise RuntimeError(f"O LibreDWG não gerou o DXF: {erro_detalhe[:250]}")
     except subprocess.TimeoutExpired:
         raise RuntimeError("Tempo limite de conversão excedido (DWG muito denso).")
     except Exception as e:
-        pass
-
-    # Tentativa 2: Fallback para padrão de intercâmbio R2000
-    cmd_fallback = ["dwg2dxf", "-y", "-v2000", "-o", dxf_path, dwg_path]
-    try:
-        res = subprocess.run(
-            cmd_fallback,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=35
-        )
-        if os.path.exists(dxf_path) and os.path.getsize(dxf_path) > 100:
-            return dxf_path
-
-        erro_log = res.stderr.decode("utf-8", errors="ignore")
-        raise RuntimeError(f"Falha na conversão do arquivo DWG pelo LibreDWG: {erro_log[:200]}")
-    except Exception as e:
-        raise RuntimeError(f"Não foi possível converter o arquivo DWG: {str(e)}")
-
+        raise RuntimeError(f"Erro na conversão DWG->DXF: {str(e)}")
 
 def executar_auditoria_completa(doc: ezdxf.document.Drawing, filename: str) -> Dict[str, Any]:
     dim_res = DimensionChecker(tolerance_mm=1.0).check(doc)
@@ -147,7 +145,6 @@ def executar_auditoria_completa(doc: ezdxf.document.Drawing, filename: str) -> D
         "inconformidades": todas_inconformidades
     }
 
-
 @app.post("/auditar-a1")
 async def auditar_e_gerar_a1(file: UploadFile = File(...)):
     filename = file.filename or "desenho.dwg"
@@ -157,10 +154,9 @@ async def auditar_e_gerar_a1(file: UploadFile = File(...)):
     if ext not in [".dwg", ".dxf"]:
         raise HTTPException(
             status_code=400,
-            detail="Formato de arquivo incompatível. Envie um arquivo .dwg ou .dxf."
+            detail="Formato incompatível. Envie um arquivo .dwg ou .dxf."
         )
 
-    # 1. Grava o arquivo fisicamente no disco e fecha a stream
     with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
         shutil.copyfileobj(file.file, tmp)
         input_path = tmp.name
@@ -169,16 +165,18 @@ async def auditar_e_gerar_a1(file: UploadFile = File(...)):
     converted_temporarily = False
 
     try:
-        # 2. Conversão automática caso seja DWG
         if ext == ".dwg":
             dxf_path = converter_dwg_para_dxf(input_path)
             converted_temporarily = True
 
-        # 3. Leitura e auditoria das entidades CAD
-        doc = ezdxf.readfile(dxf_path)
+        # Utiliza recover.readfile para reparar automaticamente avisos de proxy/headers do DWG
+        try:
+            doc, _ = recover.readfile(dxf_path)
+        except Exception:
+            doc = ezdxf.readfile(dxf_path)
+
         audit_result = executar_auditoria_completa(doc, filename)
 
-        # 4. Geração da prancha de verificação ISO A1
         pdf_filename = f"Verificacao_A1_{base_name}.pdf"
         pdf_gen = A1VerificationPDFGenerator(output_dir=REPORTS_DIR)
         pdf_gen.generate(doc, audit_result, pdf_filename)
@@ -189,7 +187,6 @@ async def auditar_e_gerar_a1(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro no processamento da prancha: {str(e)}")
     finally:
-        # 5. Limpeza de arquivos temporários do servidor
         if os.path.exists(input_path):
             try: os.remove(input_path)
             except: pass
@@ -197,12 +194,9 @@ async def auditar_e_gerar_a1(file: UploadFile = File(...)):
             try: os.remove(dxf_path)
             except: pass
 
-
-# Rota legada para compatibilidade com chamadas anteriores
 @app.post("/auditar-a3")
 async def auditar_a3_alias(file: UploadFile = File(...)):
     return await auditar_e_gerar_a1(file)
-
 
 @app.get("/download-pdf/{filename}")
 def download_pdf(filename: str):
@@ -214,7 +208,6 @@ def download_pdf(filename: str):
         media_type="application/pdf",
         filename=filename
     )
-
 
 if __name__ == "__main__":
     import uvicorn
