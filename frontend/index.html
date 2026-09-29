@@ -1,0 +1,1327 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LeafTek CAD QA/QC - Auditoria Automatizada de Projetos DWG</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- jsPDF for instant client-side PDF inspection report generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- Google Fonts: Space Grotesk & Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              dark: '#080C14',
+              surface: '#0E1422',
+              card: '#121A2D',
+              border: '#1E293B',
+              emerald: '#00F298',
+              emeraldHover: '#00D685',
+              cyan: '#06B6D4',
+              redline: '#FF334B',
+              warning: '#F59E0B'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+            heading: ['Space Grotesk', 'sans-serif']
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    /* Technical CAD Grid Pattern */
+    .cad-grid-pattern {
+      background-size: 24px 24px;
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+    }
+    .cad-grid-major {
+      background-size: 120px 120px;
+      background-image: 
+        linear-gradient(to right, rgba(0, 242, 152, 0.07) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0, 242, 152, 0.07) 1px, transparent 1px);
+    }
+
+    /* Laser Scanner Beam Animation */
+    @keyframes laserSweep {
+      0% { top: 0%; opacity: 0; }
+      15% { opacity: 1; }
+      85% { opacity: 1; }
+      100% { top: 100%; opacity: 0; }
+    }
+    .laser-beam {
+      animation: laserSweep 2.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      box-shadow: 0 0 25px #00F298, 0 0 50px rgba(0, 242, 152, 0.6);
+    }
+
+    /* Redline Pulse Animation */
+    @keyframes redlinePulse {
+      0%, 100% { stroke-opacity: 1; stroke-width: 2.2px; filter: drop-shadow(0 0 4px #FF334B); }
+      50% { stroke-opacity: 0.45; stroke-width: 3.5px; filter: drop-shadow(0 0 14px #FF334B); }
+    }
+    .redline-cloud {
+      animation: redlinePulse 1.9s ease-in-out infinite;
+      cursor: pointer;
+    }
+    .redline-cloud:hover {
+      stroke-width: 4px !important;
+      fill: rgba(255, 51, 75, 0.22) !important;
+    }
+
+    /* Custom high-tech scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0B0F17;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1E293B;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #00F298;
+    }
+
+    /* Glassmorphism effects */
+    .glass-panel {
+      background: rgba(14, 20, 34, 0.75);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+    }
+    .glass-card {
+      background: rgba(18, 26, 45, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(30, 41, 59, 0.8);
+    }
+    .glass-card:hover {
+      border-color: rgba(0, 242, 152, 0.35);
+    }
+  </style>
+</head>
+
+<body class="bg-brand-dark text-slate-200 font-sans antialiased h-screen w-screen overflow-hidden flex flex-col select-none">
+
+  <!-- ================= TOP NAVIGATION / HEADER ================= -->
+  <header class="h-16 border-b border-brand-border bg-brand-surface/90 backdrop-blur-md px-6 flex items-center justify-between z-30 shrink-0">
+    <!-- Brand & Software Title -->
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-3">
+        <div class="relative w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-card to-emerald-950/60 border border-brand-emerald/40 flex items-center justify-center shadow-[0_0_20px_rgba(0,242,152,0.25)]">
+          <!-- Leaf / Tech Icon -->
+          <svg class="w-6 h-6 text-brand-emerald" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 2L4 7v10l8 5 8-5V7l-8-5z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 22V12" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 12l8-5" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 12L4 7" />
+          </svg>
+          <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-brand-emerald rounded-full border-2 border-brand-dark animate-pulse"></div>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-heading font-bold text-lg tracking-wider text-white">LEAF<span class="text-brand-emerald">TEK</span></span>
+            <span class="text-[10px] uppercase font-mono tracking-widest font-semibold px-2 py-0.5 rounded-full bg-brand-emerald/10 text-brand-emerald border border-brand-emerald/20">CAD Audit Pro</span>
+          </div>
+          <p class="text-xs text-slate-400 font-mono">Engine de Verificação Automatizada • DWG & Advance Steel</p>
+        </div>
+      </div>
+
+      <div class="h-6 w-px bg-brand-border mx-2"></div>
+
+      <!-- Engine Status Indicator -->
+      <div class="flex items-center gap-2 bg-brand-card/80 px-3 py-1.5 rounded-lg border border-brand-border text-xs font-mono">
+        <span class="w-2 h-2 rounded-full bg-brand-emerald shadow-[0_0_8px_#00F298]"></span>
+        <span class="text-slate-300">Engine ODA Teigha v26.1:</span>
+        <span class="text-brand-emerald font-semibold">Online & Pronta</span>
+      </div>
+    </div>
+
+    <!-- Right Controls: Credits, Recharge Button & User Profile -->
+    <div class="flex items-center gap-4">
+      <!-- Balance Pill -->
+      <div class="flex items-center gap-3 bg-brand-card border border-brand-border rounded-xl px-3.5 py-1.5 shadow-inner">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-lg bg-brand-emerald/10 border border-brand-emerald/30 flex items-center justify-center">
+            <svg class="w-4 h-4 text-brand-emerald" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+          </div>
+          <div>
+            <span class="text-[10px] font-mono uppercase text-slate-400 block leading-tight">Saldo de Uso</span>
+            <span id="creditBalanceDisplay" class="text-sm font-heading font-bold text-white tracking-wide">
+              <span class="text-brand-emerald text-base font-bold" id="creditCountNumber">12</span> Créditos
+            </span>
+          </div>
+        </div>
+
+        <button onclick="openRechargeModal()" class="ml-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-brand-emerald to-emerald-500 hover:from-brand-emeraldHover hover:to-emerald-400 text-brand-dark font-heading font-bold text-xs uppercase tracking-wider transition-all duration-200 transform hover:scale-[1.02] shadow-[0_0_15px_rgba(0,242,152,0.3)] flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+          </svg>
+          Recarregar
+        </button>
+      </div>
+
+      <div class="h-6 w-px bg-brand-border"></div>
+
+      <!-- User Profile Badge -->
+      <div class="flex items-center gap-3 bg-brand-card/50 hover:bg-brand-card border border-brand-border rounded-xl px-3 py-1.5 transition-colors cursor-pointer">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-600 to-brand-emerald flex items-center justify-center text-brand-dark font-bold text-xs font-heading">
+          LC
+        </div>
+        <div class="text-left">
+          <div class="text-xs font-semibold text-white leading-tight">Eng. Lucas Coimbra</div>
+          <div class="text-[10px] text-slate-400 font-mono">Draft Solutions • Admin</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= MAIN APP WORKSPACE ================= -->
+  <main class="flex-1 flex overflow-hidden relative">
+
+    <!-- ================= LEFT SIDEBAR (UPLOAD & CONTROLS) ================= -->
+    <aside class="w-96 border-r border-brand-border bg-brand-surface/95 flex flex-col z-20 shrink-0">
+      
+      <!-- Top Section: Upload Area -->
+      <div class="p-5 border-b border-brand-border/80">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-xs font-heading font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+            <svg class="w-4 h-4 text-brand-emerald" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            Carregar Arquivo DWG
+          </span>
+          <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-brand-border text-slate-400">AC1032 / 2026</span>
+        </div>
+
+        <!-- Drag & Drop Zone -->
+        <div id="dropZone" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)" onclick="triggerFileInput()" class="relative border-2 border-dashed border-slate-700 hover:border-brand-emerald/70 bg-brand-card/40 hover:bg-brand-card/80 transition-all duration-200 rounded-2xl p-5 text-center cursor-pointer group">
+          <input type="file" id="fileInput" accept=".dwg,.dxf" class="hidden" onchange="handleFileSelect(event)">
+          
+          <div class="w-12 h-12 mx-auto rounded-xl bg-slate-800/80 group-hover:bg-brand-emerald/10 border border-slate-700 group-hover:border-brand-emerald/40 flex items-center justify-center transition-colors mb-2">
+            <svg class="w-6 h-6 text-slate-400 group-hover:text-brand-emerald transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+            </svg>
+          </div>
+
+          <p class="text-xs font-medium text-slate-200 group-hover:text-white">Arraste o arquivo .DWG aqui</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">ou clique para procurar no seu computador</p>
+          <p class="text-[10px] text-brand-cyan/80 font-mono mt-2">Suporte nativo a AutoCAD e Advance Steel</p>
+        </div>
+
+        <!-- Demo File Loader Shortcut -->
+        <div class="mt-3">
+          <button onclick="loadDemoDrawing()" class="w-full py-2 px-3 rounded-xl bg-brand-card/60 hover:bg-brand-card border border-brand-border hover:border-slate-600 text-xs font-mono text-slate-300 hover:text-white flex items-center justify-between transition-all group">
+            <span class="flex items-center gap-2">
+              <svg class="w-3.5 h-3.5 text-brand-emerald group-hover:rotate-12 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
+              </svg>
+              <span>Carregar: <strong class="text-white">Galpao_C-TWIN.dwg</strong></span>
+            </span>
+            <span class="text-[10px] text-brand-emerald font-semibold uppercase">Testar</span>
+          </button>
+        </div>
+
+        <!-- Current File Loaded Status -->
+        <div id="loadedFileInfo" class="mt-3 p-2.5 rounded-xl bg-brand-card border border-brand-emerald/30 flex items-center justify-between">
+          <div class="flex items-center gap-2.5 overflow-hidden">
+            <div class="w-6 h-6 rounded bg-brand-emerald/10 text-brand-emerald flex items-center justify-center shrink-0">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM13 9V3.5L18.5 9H13z"/>
+              </svg>
+            </div>
+            <div class="truncate">
+              <div id="fileNameLabel" class="text-xs font-mono font-semibold text-slate-100 truncate">Galpao_Estrutural_C-TWIN.dwg</div>
+              <div class="text-[10px] text-slate-400 font-mono">1.84 MB • Formato ISO A1 • Model/Layout</div>
+            </div>
+          </div>
+          <span class="w-2 h-2 rounded-full bg-brand-emerald shrink-0"></span>
+        </div>
+      </div>
+
+      <!-- Modules Checklist Section -->
+      <div class="flex-1 overflow-y-auto p-5 space-y-4">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-heading font-bold uppercase tracking-wider text-slate-300">
+            Regras de Verificação Ativas
+          </span>
+          <span class="text-[11px] font-mono text-brand-emerald">5 / 5 Selecionadas</span>
+        </div>
+
+        <div class="space-y-2.5 text-xs font-sans">
+          <!-- Module 1 -->
+          <label class="flex items-start gap-3 p-3 rounded-xl bg-brand-card/50 hover:bg-brand-card border border-brand-border/80 cursor-pointer transition-colors group">
+            <input type="checkbox" id="chkLayers" checked class="mt-0.5 rounded border-slate-700 text-brand-emerald focus:ring-0 focus:ring-offset-0 bg-slate-900 w-4 h-4 accent-brand-emerald cursor-pointer">
+            <div>
+              <div class="font-semibold text-slate-200 group-hover:text-white flex items-center gap-1.5">
+                <span>Camadas & Layers ISO</span>
+                <span class="text-[9px] font-mono text-brand-emerald px-1.5 py-0.2 rounded bg-brand-emerald/10">Essencial</span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-0.5">Identifica entidades na Layer 0, Defpoints e objetos fora de ByLayer.</p>
+            </div>
+          </label>
+
+          <!-- Module 2 -->
+          <label class="flex items-start gap-3 p-3 rounded-xl bg-brand-card/50 hover:bg-brand-card border border-brand-border/80 cursor-pointer transition-colors group">
+            <input type="checkbox" id="chkSpelling" checked class="mt-0.5 rounded border-slate-700 text-brand-emerald focus:ring-0 focus:ring-offset-0 bg-slate-900 w-4 h-4 accent-brand-emerald cursor-pointer">
+            <div>
+              <div class="font-semibold text-slate-200 group-hover:text-white">Ortografia & Dicionário Técnico</div>
+              <p class="text-[11px] text-slate-400 mt-0.5">Audita textos, notas e abreviações de engenharia mecânica/estrutural.</p>
+            </div>
+          </label>
+
+          <!-- Module 3 -->
+          <label class="flex items-start gap-3 p-3 rounded-xl bg-brand-card/50 hover:bg-brand-card border border-brand-border/80 cursor-pointer transition-colors group">
+            <input type="checkbox" id="chkBOM" checked class="mt-0.5 rounded border-slate-700 text-brand-emerald focus:ring-0 focus:ring-offset-0 bg-slate-900 w-4 h-4 accent-brand-emerald cursor-pointer">
+            <div>
+              <div class="font-semibold text-slate-200 group-hover:text-white flex items-center gap-1.5">
+                <span>Pesos da Lista de Materiais</span>
+                <span class="text-[9px] font-mono text-cyan-400 px-1.5 py-0.2 rounded bg-cyan-950/40">7.850 kg/m³</span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-0.5">Calcula peso teórico dos perfis e detecta fraudes ou erros na tabela.</p>
+            </div>
+          </label>
+
+          <!-- Module 4 -->
+          <label class="flex items-start gap-3 p-3 rounded-xl bg-brand-card/50 hover:bg-brand-card border border-brand-border/80 cursor-pointer transition-colors group">
+            <input type="checkbox" id="chkDimOverride" checked class="mt-0.5 rounded border-slate-700 text-brand-emerald focus:ring-0 focus:ring-offset-0 bg-slate-900 w-4 h-4 accent-brand-emerald cursor-pointer">
+            <div>
+              <div class="font-semibold text-slate-200 group-hover:text-white flex items-center gap-1.5">
+                <span>Cotas Adulteradas (Override)</span>
+                <span class="text-[9px] font-mono text-brand-redline px-1.5 py-0.2 rounded bg-brand-redline/10">Crítico</span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-0.5">Localiza cotas com valores digitados à mão que mentem sobre a geometria real.</p>
+            </div>
+          </label>
+
+          <!-- Module 5 -->
+          <label class="flex items-start gap-3 p-3 rounded-xl bg-brand-card/50 hover:bg-brand-card border border-brand-border/80 cursor-pointer transition-colors group">
+            <input type="checkbox" id="chkTitleBlock" checked class="mt-0.5 rounded border-slate-700 text-brand-emerald focus:ring-0 focus:ring-offset-0 bg-slate-900 w-4 h-4 accent-brand-emerald cursor-pointer">
+            <div>
+              <div class="font-semibold text-slate-200 group-hover:text-white">Carimbo, Soldas AWS e Notas</div>
+              <p class="text-[11px] text-slate-400 mt-0.5">Verifica notas obrigatórias de solda AWS E7018, pintura e atributos da folha.</p>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Action Footer: Trigger Audit Execution -->
+      <div class="p-5 border-t border-brand-border/80 bg-brand-card/30">
+        <button id="btnRunAudit" onclick="runAutomatedAudit()" class="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-brand-emerald to-emerald-500 hover:from-brand-emeraldHover hover:to-emerald-400 text-brand-dark font-heading font-bold text-sm uppercase tracking-wider transition-all duration-200 transform active:scale-95 shadow-[0_0_20px_rgba(0,242,152,0.35)] flex items-center justify-center gap-2 group">
+          <svg class="w-5 h-5 group-hover:animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span>Iniciar Verificação (1 Crédito)</span>
+        </button>
+        <div class="flex items-center justify-between text-[11px] font-mono text-slate-400 mt-2 px-1">
+          <span>Tempo estimado: ~2.4s</span>
+          <span class="text-brand-emerald">Garantia QA/QC LeafTek</span>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- ================= CENTER WORKSPACE (CAD CANVAS & BLUEPRINT) ================= -->
+    <section class="flex-1 flex flex-col bg-brand-dark relative overflow-hidden">
+      
+      <!-- Top HUD Toolbar inside CAD Viewport -->
+      <div class="h-12 border-b border-brand-border/60 bg-brand-surface/70 backdrop-blur-md px-4 flex items-center justify-between z-10 shrink-0">
+        <div class="flex items-center gap-2">
+          <!-- Viewport Mode Tabs -->
+          <div class="flex items-center p-1 bg-brand-dark/90 rounded-lg border border-brand-border">
+            <button class="px-3 py-1 rounded bg-brand-card text-brand-emerald font-mono text-xs font-semibold shadow">Model (Layout 1)</button>
+            <button class="px-3 py-1 rounded text-slate-400 hover:text-slate-200 font-mono text-xs">Folha ISO A1</button>
+            <button class="px-3 py-1 rounded text-slate-400 hover:text-slate-200 font-mono text-xs">Advance Steel 3D</button>
+          </div>
+
+          <div class="h-4 w-px bg-brand-border mx-1"></div>
+
+          <!-- Quick Toggle Layers -->
+          <button onclick="toggleRedlines()" id="btnToggleRedlines" class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-brand-redline/15 border border-brand-redline/40 text-brand-redline text-xs font-mono font-medium hover:bg-brand-redline/25 transition-colors">
+            <span class="w-2 h-2 rounded-full bg-brand-redline animate-ping"></span>
+            <span>Nuvens de Revisão (4)</span>
+          </button>
+
+          <button onclick="toggleGrid()" class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-brand-card/80 border border-brand-border text-slate-300 text-xs font-mono hover:text-white transition-colors">
+            <span>Grade Técnica: ON</span>
+          </button>
+        </div>
+
+        <!-- Zoom / Pan / Fit Controls -->
+        <div class="flex items-center gap-1 bg-brand-dark/90 p-1 rounded-lg border border-brand-border text-slate-300">
+          <button onclick="zoomIn()" class="p-1.5 hover:text-brand-emerald hover:bg-brand-card rounded transition-colors" title="Zoom In (+)">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+            </svg>
+          </button>
+          <button onclick="zoomOut()" class="p-1.5 hover:text-brand-emerald hover:bg-brand-card rounded transition-colors" title="Zoom Out (-)">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M20 12H4"/>
+            </svg>
+          </button>
+          <button onclick="resetZoom()" class="px-2 py-1 text-xs font-mono hover:text-brand-emerald hover:bg-brand-card rounded transition-colors" title="Reset View">
+            100%
+          </button>
+          <button onclick="fitToScreen()" class="p-1.5 hover:text-brand-emerald hover:bg-brand-card rounded transition-colors" title="Ajustar à Tela">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Interactive CAD Drawing Canvas Container -->
+      <div id="cadViewport" onmousemove="updateCADCoordinates(event)" class="flex-1 relative overflow-hidden cad-grid-pattern cad-grid-major flex items-center justify-center cursor-crosshair">
+        
+        <!-- Laser Scanner Bar (Hidden by default, triggered during verification) -->
+        <div id="laserScanner" class="hidden absolute left-0 right-0 h-1 bg-brand-emerald z-30 pointer-events-none laser-beam">
+          <div class="absolute -top-3 left-4 px-2 py-0.5 rounded bg-brand-emerald text-brand-dark font-mono font-bold text-[10px] tracking-wider uppercase shadow">
+            AUDITORIA ODA ABERTA • ESCANEANDO ENTIDADES...
+          </div>
+        </div>
+
+        <!-- Terminal Log Overlay (Appears during scanning) -->
+        <div id="scanConsoleOverlay" class="hidden absolute top-6 left-6 z-40 w-96 p-4 rounded-xl bg-brand-dark/95 border border-brand-emerald/40 shadow-2xl font-mono text-[11px] text-slate-300 pointer-events-none">
+          <div class="flex items-center justify-between pb-2 mb-2 border-b border-brand-border">
+            <span class="text-brand-emerald font-bold flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-brand-emerald animate-ping"></span>
+              PROCESSAMENTO ATIVO
+            </span>
+            <span id="scanProgressPct" class="text-white font-bold">34%</span>
+          </div>
+          <div id="scanLogsContainer" class="space-y-1 text-slate-400 h-28 overflow-hidden flex flex-col justify-end">
+            <!-- Dynamic terminal lines inserted via JS -->
+          </div>
+        </div>
+
+        <!-- Transformable Drawing Wrapper (Zoom / Pan target) -->
+        <div id="drawingTransformContainer" class="transition-transform duration-100 ease-out p-8">
+          
+          <!-- Drawing Sheet Simulation (ISO A1 Border) -->
+          <div class="relative w-[880px] h-[580px] bg-[#0A101C] rounded-lg border-2 border-slate-700/80 shadow-[0_0_50px_rgba(0,0,0,0.8)] p-6">
+            
+            <!-- Drawing Header & Grid Coordinate Marks -->
+            <div class="absolute top-2 left-6 text-[10px] font-mono text-slate-500 flex gap-12">
+              <span>X: 000.00</span>
+              <span>A</span>
+              <span>B</span>
+              <span>C</span>
+              <span>D</span>
+              <span>E</span>
+            </div>
+            <div class="absolute bottom-2 left-6 text-[10px] font-mono text-slate-500">
+              PROJETO: ESTRUTURA METÁLICA - GALPÃO C-TWIN | ESCALA 1:25 | DESENHO N°: DWG-STR-2026-088
+            </div>
+
+            <!-- SVG Technical Structural Drawing -->
+            <svg id="cadSvg" class="w-full h-full" viewBox="0 0 840 540" fill="none" xmlns="http://www.w3.org/2000/svg">
+              
+              <!-- Background Reference Centerlines -->
+              <g stroke="#1E293B" stroke-dasharray="6 4" stroke-width="1">
+                <line x1="160" y1="20" x2="160" y2="480" />
+                <line x1="420" y1="20" x2="420" y2="480" />
+                <line x1="680" y1="20" x2="680" y2="480" />
+                <line x1="40" y1="280" x2="800" y2="280" />
+              </g>
+
+              <!-- Structural Foundation Concrete Pad -->
+              <rect x="70" y="440" width="220" height="50" fill="#131C2D" stroke="#334155" stroke-width="1.8" />
+              <text x="140" y="470" fill="#64748B" font-family="JetBrains Mono" font-size="9">BASE DE CONCRETO Fck 30 MPa</text>
+
+              <!-- Anchor Bolts (Chumbadores) -->
+              <g stroke="#94A3B8" stroke-width="2">
+                <line x1="100" y1="390" x2="100" y2="470" />
+                <line x1="94" y1="470" x2="106" y2="470" />
+                <line x1="260" y1="390" x2="260" y2="470" />
+                <line x1="254" y1="470" x2="266" y2="470" />
+              </g>
+
+              <!-- Base Plate (Chapa de Base) -->
+              <rect x="85" y="420" width="190" height="18" fill="#1E293B" stroke="#00F298" stroke-width="2" />
+
+              <!-- Main Column: Twin Channel (C-TWIN 2x UPN 200) -->
+              <!-- Channel 1 -->
+              <path d="M 125 100 L 140 100 L 140 420 L 125 420 Z" fill="#1E293B" stroke="#38BDF8" stroke-width="2" />
+              <!-- Channel 2 -->
+              <path d="M 220 100 L 235 100 L 235 420 L 220 420 Z" fill="#1E293B" stroke="#38BDF8" stroke-width="2" />
+
+              <!-- Batten Stiffener Plates (Presilhas de ligação do perfil C-TWIN) -->
+              <rect x="140" y="160" width="80" height="24" fill="#0F172A" stroke="#38BDF8" stroke-width="1.5" />
+              <rect x="140" y="260" width="80" height="24" fill="#0F172A" stroke="#38BDF8" stroke-width="1.5" />
+              <rect x="140" y="360" width="80" height="24" fill="#0F172A" stroke="#38BDF8" stroke-width="1.5" />
+
+              <!-- Beam Connection Gusset (Mísula da Viga W310x32.7) -->
+              <path d="M 235 120 L 410 120 L 320 220 L 235 220 Z" fill="#132238" stroke="#38BDF8" stroke-width="2" />
+              <!-- Horizontal Rafter Beam (Perfil I W310) -->
+              <rect x="235" y="110" width="280" height="20" fill="#1E293B" stroke="#38BDF8" stroke-width="2" />
+
+              <!-- Regular Dimension Lines (Cotas Normais) -->
+              <g stroke="#64748B" stroke-width="1">
+                <!-- Height Base to Plate -->
+                <line x1="60" y1="420" x2="60" y2="440" />
+                <line x1="50" y1="420" x2="70" y2="420" />
+                <line x1="50" y1="440" x2="70" y2="440" />
+                <text x="25" y="434" fill="#94A3B8" font-family="JetBrains Mono" font-size="9">18 mm</text>
+
+                <!-- Anchor spacing -->
+                <line x1="100" y1="400" x2="260" y2="400" />
+                <line x1="100" y1="395" x2="100" y2="405" />
+                <line x1="260" y1="395" x2="260" y2="405" />
+                <text x="165" y="395" fill="#94A3B8" font-family="JetBrains Mono" font-size="9">160 mm</text>
+              </g>
+
+              <!-- Bill of Materials Table (Lista de Materiais Advance Steel) -->
+              <g id="bomTableGroup" transform="translate(480, 280)">
+                <rect x="0" y="0" width="330" height="150" fill="#0E1626" stroke="#334155" stroke-width="1.5" />
+                <!-- Header -->
+                <rect x="0" y="0" width="330" height="24" fill="#172439" />
+                <text x="12" y="16" fill="#00F298" font-family="Space Grotesk" font-weight="bold" font-size="10">LISTA DE MATERIAIS (ADVANCE STEEL)</text>
+                
+                <text x="10" y="38" fill="#64748B" font-family="JetBrains Mono" font-size="8">POS</text>
+                <text x="45" y="38" fill="#64748B" font-family="JetBrains Mono" font-size="8">PERFIL/PEÇA</text>
+                <text x="150" y="38" fill="#64748B" font-family="JetBrains Mono" font-size="8">QTD</text>
+                <text x="190" y="38" fill="#64748B" font-family="JetBrains Mono" font-size="8">COMP(mm)</text>
+                <text x="260" y="38" fill="#64748B" font-family="JetBrains Mono" font-size="8">PESO(kg)</text>
+                <line x1="0" y1="44" x2="330" y2="44" stroke="#1E293B" />
+
+                <!-- Row 1: C-TWIN (Has calculation weight error!) -->
+                <text x="10" y="60" fill="#E2E8F0" font-family="JetBrains Mono" font-size="8">01</text>
+                <text x="45" y="60" fill="#E2E8F0" font-family="JetBrains Mono" font-size="8">2x UPN 200 (C-TWIN)</text>
+                <text x="155" y="60" fill="#E2E8F0" font-family="JetBrains Mono" font-size="8">02</text>
+                <text x="200" y="60" fill="#E2E8F0" font-family="JetBrains Mono" font-size="8">4500</text>
+                <!-- Erroneous Weight: says 180 kg instead of theoretical 228.6 kg -->
+                <text x="265" y="60" fill="#FF4757" font-weight="bold" font-family="JetBrains Mono" font-size="9">180.0</text>
+                <line x1="0" y1="68" x2="330" y2="68" stroke="#1E293B" />
+
+                <!-- Row 2: Rafter Beam -->
+                <text x="10" y="84" fill="#E2E8F0" font-family="JetBrains Mono" font-size="8">02</text>
+                <text x="45" y="84" fill="#E2E8F0" font-family="JetBrains Mono" font-size="8">W310 x 32.7</text>
+                <text x="155" y="84" fill="#E2E8F0" font-family="JetBrains Mono" font-size="8">01</text>
+                <text x="200" y="84" fill="#E2E8F0" font-family="JetBrains Mono" font-size="8">6000</text>
+                <text x="265" y="84" fill="#E2E8F0" font-family="JetBrains Mono" font-size="8">196.2</text>
+                <line x1="0" y1="92" x2="330" y2="92" stroke="#1E293B" />
+
+                <!-- Row 3: Base Plate -->
+                <text x="10" y="108" fill="#E2E8F0" font-family="JetBrains Mono" font-size="8">03</text>
+                <text x="45" y="108" fill="#E2E8F0" font-family="JetBrains Mono" font-size="8">PL 19 x 380 x 450</text>
+                <text x="155" y="108" fill="#E2E8F0" font-family="JetBrains Mono" font-size="8">01</text>
+                <text x="200" y="108" fill="#E2E8F0" font-family="JetBrains Mono" font-size="8">450</text>
+                <text x="265" y="108" fill="#E2E8F0" font-family="JetBrains Mono" font-size="8">25.5</text>
+                
+                <!-- Density note -->
+                <text x="10" y="136" fill="#00F298" font-family="JetBrains Mono" font-size="7.5">DENSIDADE DO AÇO CONSIDERADA: 7.850 kg/m³</text>
+              </g>
+
+              <!-- Technical Notes & Title Block (Carimbo) -->
+              <g id="titleBlockGroup" transform="translate(480, 440)">
+                <rect x="0" y="0" width="330" height="70" fill="#0F172A" stroke="#334155" stroke-width="1.5" />
+                <line x1="0" y1="24" x2="330" y2="24" stroke="#334155" />
+                <line x1="160" y1="0" x2="160" y2="70" stroke="#334155" />
+                
+                <text x="10" y="16" fill="#94A3B8" font-family="Space Grotesk" font-size="8">CLIENTE / CONTRATO: INDUSTRIAL PARQUES</text>
+                <text x="170" y="16" fill="#38BDF8" font-family="Space Grotesk" font-weight="bold" font-size="9">DRAFT SOLUTIONS ENG.</text>
+                
+                <text x="10" y="38" fill="#64748B" font-family="JetBrains Mono" font-size="8">DESENHISTA: L. COIMBRA</text>
+                <text x="10" y="52" fill="#64748B" font-family="JetBrains Mono" font-size="8">FOLHA: 01/01 - REV. 02</text>
+                <text x="170" y="38" fill="#64748B" font-family="JetBrains Mono" font-size="8">SOLDA: AWS D1.1 (E7018)</text>
+                <text x="170" y="52" fill="#64748B" font-family="JetBrains Mono" font-size="8">DIMENSÕES EM MILÍMETROS</text>
+              </g>
+
+              <!-- ======================================================== -->
+              <!-- REDLINE CLOUDS (NUVENS DE REVISÃO COM ANOTAÇÕES DE ERRO) -->
+              <!-- ======================================================== -->
+              <g id="redlineCloudsLayer">
+                
+                <!-- ERROR 1: Dim Override / Cota Sobrescrita -->
+                <g class="redline-cloud" onclick="selectIssue(0)" id="redlineIssue0">
+                  <!-- Dimension Override text and line -->
+                  <line x1="235" y1="80" x2="480" y2="80" stroke="#FF334B" stroke-width="2" />
+                  <line x1="235" y1="70" x2="235" y2="90" stroke="#FF334B" stroke-width="2" />
+                  <line x1="480" y1="70" x2="480" y2="90" stroke="#FF334B" stroke-width="2" />
+                  <rect x="310" y="65" width="105" height="24" rx="4" fill="#1F1318" stroke="#FF334B" stroke-width="1.5" />
+                  <text x="318" y="81" fill="#FF334B" font-family="JetBrains Mono" font-weight="bold" font-size="9">3500 [FORÇADO]</text>
+                  
+                  <!-- Revision cloud path around dim -->
+                  <path d="M 220 50 Q 235 40 250 50 Q 270 38 290 50 Q 320 38 350 50 Q 380 38 410 50 Q 440 38 470 50 Q 500 40 505 60 Q 515 80 505 100 Q 480 115 450 105 Q 420 115 390 105 Q 360 115 330 105 Q 300 115 270 105 Q 240 115 220 100 Q 210 75 220 50 Z" 
+                        fill="rgba(255, 51, 75, 0.08)" stroke="#FF334B" stroke-width="2.5" />
+                  <!-- Callout badge -->
+                  <circle cx="215" cy="50" r="11" fill="#FF334B" />
+                  <text x="211" y="54" fill="#FFFFFF" font-family="Space Grotesk" font-weight="bold" font-size="11">1</text>
+                </g>
+
+                <!-- ERROR 2: Solda Irregular / AWS Divergente -->
+                <g class="redline-cloud" onclick="selectIssue(1)" id="redlineIssue1">
+                  <!-- Cloud near column to beam connection -->
+                  <path d="M 225 190 Q 240 175 260 190 Q 280 180 300 195 Q 320 185 330 205 Q 320 230 300 240 Q 275 245 255 235 Q 230 245 220 220 Q 215 200 225 190 Z" 
+                        fill="rgba(255, 51, 75, 0.08)" stroke="#FF334B" stroke-width="2.5" />
+                  <!-- Welding note text on drawing -->
+                  <text x="245" y="215" fill="#FF334B" font-family="JetBrains Mono" font-size="9" font-weight="bold">SOLDA AWS E6013 ?</text>
+                  <circle cx="225" cy="180" r="11" fill="#FF334B" />
+                  <text x="221" y="184" fill="#FFFFFF" font-family="Space Grotesk" font-weight="bold" font-size="11">2</text>
+                </g>
+
+                <!-- ERROR 3: BOM Material Weight Divergence (Table row) -->
+                <g class="redline-cloud" onclick="selectIssue(2)" id="redlineIssue2">
+                  <path d="M 470 325 Q 490 315 520 325 Q 560 315 600 325 Q 650 315 700 325 Q 750 315 800 325 Q 825 335 825 355 Q 815 375 790 380 Q 740 385 680 380 Q 620 385 550 380 Q 490 385 470 365 Q 460 345 470 325 Z" 
+                        fill="rgba(255, 51, 75, 0.08)" stroke="#FF334B" stroke-width="2.5" />
+                  <circle cx="470" cy="320" r="11" fill="#FF334B" />
+                  <text x="466" y="324" fill="#FFFFFF" font-family="Space Grotesk" font-weight="bold" font-size="11">3</text>
+                </g>
+
+                <!-- ERROR 4: Object on Layer 0 / Defpoints -->
+                <g class="redline-cloud" onclick="selectIssue(3)" id="redlineIssue3">
+                  <!-- Stiffener plate drawn incorrectly on layer 0 -->
+                  <path d="M 125 240 Q 145 230 170 240 Q 200 230 230 240 Q 255 250 250 275 Q 240 300 215 305 Q 180 310 150 305 Q 125 300 120 280 Q 115 255 125 240 Z" 
+                        fill="rgba(255, 51, 75, 0.08)" stroke="#FF334B" stroke-width="2.5" />
+                  <circle cx="120" cy="235" r="11" fill="#FF334B" />
+                  <text x="116" y="239" fill="#FFFFFF" font-family="Space Grotesk" font-weight="bold" font-size="11">4</text>
+                </g>
+
+              </g>
+
+              <!-- OFFICIAL DIGITAL AUDIT STAMP (CARIMBO DIGITAL DE AUDITORIA) -->
+              <g id="officialAuditStamp" class="cursor-pointer" transform="translate(60, 40)">
+                <rect x="0" y="0" width="180" height="74" rx="6" fill="#140A0D" stroke="#FF334B" stroke-width="2.5" stroke-dasharray="6 3" />
+                <rect x="4" y="4" width="172" height="66" rx="4" fill="rgba(255, 51, 75, 0.05)" />
+                <text x="12" y="20" fill="#FF334B" font-family="Space Grotesk" font-weight="bold" font-size="11" letter-spacing="1">QA/QC - REPROVADO</text>
+                <text x="12" y="34" fill="#FFFFFF" font-family="JetBrains Mono" font-size="8">4 APONTAMENTOS CRÍTICOS</text>
+                <text x="12" y="47" fill="#94A3B8" font-family="JetBrains Mono" font-size="7.5">DATA: 29/09/2026 • 08:42 BRT</text>
+                <text x="12" y="60" fill="#00F298" font-family="JetBrains Mono" font-size="7.5">HASH: 9F8A-7C12-EED0-B841</text>
+              </g>
+
+            </svg>
+          </div>
+        </div>
+
+        <!-- Viewport Bottom Status Bar: Realtime Coordinates & Grid Info -->
+        <div class="absolute bottom-3 left-4 right-4 flex items-center justify-between pointer-events-none z-10">
+          <div class="flex items-center gap-3 bg-brand-surface/90 backdrop-blur-md px-3 py-1.5 rounded-lg border border-brand-border text-[11px] font-mono text-slate-300">
+            <span class="flex items-center gap-1.5">
+              <span class="text-brand-emerald font-bold">X:</span>
+              <span id="coordX">412.35 mm</span>
+            </span>
+            <span class="h-3 w-px bg-brand-border"></span>
+            <span class="flex items-center gap-1.5">
+              <span class="text-brand-emerald font-bold">Y:</span>
+              <span id="coordY">1289.40 mm</span>
+            </span>
+            <span class="h-3 w-px bg-brand-border"></span>
+            <span class="text-slate-400">UNIDADE: <strong class="text-white">MILÍMETROS</strong></span>
+          </div>
+
+          <div class="bg-brand-surface/90 backdrop-blur-md px-3 py-1.5 rounded-lg border border-brand-border text-[11px] font-mono text-slate-400">
+            Render: <span class="text-brand-emerald font-semibold">Advance Steel Graphics Native</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ================= RIGHT SIDEBAR (AUDIT REPORT & SCORE) ================= -->
+    <aside class="w-[420px] border-l border-brand-border bg-brand-surface/95 flex flex-col z-20 shrink-0">
+      
+      <!-- Report Header -->
+      <div class="p-5 border-b border-brand-border/80">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-brand-redline animate-pulse"></span>
+            <h2 class="font-heading font-bold text-sm uppercase tracking-wider text-white">Relatório de Conformidade</h2>
+          </div>
+          <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-brand-redline/20 text-brand-redline font-bold border border-brand-redline/40">
+            Status: REPROVADO
+          </span>
+        </div>
+
+        <!-- Score Gauge & Metrics Bar -->
+        <div class="p-4 rounded-2xl bg-brand-card/70 border border-brand-border flex items-center justify-between gap-4">
+          <!-- Circular Gauge Representation -->
+          <div class="relative w-20 h-20 flex items-center justify-center shrink-0">
+            <svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+              <path class="text-slate-800" stroke-width="3.5" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+              <!-- 68% progress stroke in warning/red -->
+              <path class="text-brand-redline" stroke-dasharray="68, 100" stroke-width="3.5" stroke-linecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+            </svg>
+            <div class="absolute flex flex-col items-center">
+              <span class="text-lg font-heading font-bold text-white leading-none">68%</span>
+              <span class="text-[8px] font-mono text-slate-400 uppercase">Índice QA</span>
+            </div>
+          </div>
+
+          <!-- Metrics summary -->
+          <div class="space-y-1.5 flex-1 font-mono text-xs">
+            <div class="flex justify-between items-center text-slate-400">
+              <span>Erros Críticos:</span>
+              <span class="text-brand-redline font-bold">2 Falhas</span>
+            </div>
+            <div class="flex justify-between items-center text-slate-400">
+              <span>Alertas Técnicos:</span>
+              <span class="text-brand-warning font-bold">2 Avisos</span>
+            </div>
+            <div class="flex justify-between items-center text-slate-400">
+              <span>Itens Auditados:</span>
+              <span class="text-brand-emerald font-bold">28 Regras</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Non-Conformities List (Clickable to Pan/Highlight) -->
+      <div class="flex-1 overflow-y-auto p-5 space-y-3">
+        <div class="flex items-center justify-between text-xs font-mono text-slate-400 mb-1">
+          <span>APONTAMENTOS DETECTADOS (4)</span>
+          <span class="text-[10px] text-slate-500">Clique para inspecionar</span>
+        </div>
+
+        <!-- Issue Card 1: Dim Override -->
+        <div onclick="selectIssue(0)" id="cardIssue0" class="glass-card p-3.5 rounded-xl border border-brand-redline/40 bg-brand-redline/5 hover:bg-brand-redline/10 transition-all cursor-pointer group">
+          <div class="flex items-start justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <span class="w-5 h-5 rounded-md bg-brand-redline text-white font-bold text-xs flex items-center justify-center font-heading shrink-0">1</span>
+              <span class="text-xs font-heading font-bold text-white group-hover:text-brand-redline transition-colors">Cota Sobrescrita Manualmente (Override)</span>
+            </div>
+            <span class="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded bg-brand-redline/20 text-brand-redline font-bold">Crítico</span>
+          </div>
+          <p class="text-[11px] text-slate-300 mt-2 font-mono">
+            Valor digitado: <strong class="text-brand-redline font-bold">3.500 mm</strong> | Geometria Real CAD: <strong class="text-brand-emerald font-bold">3.450 mm</strong> (Divergência de 50 mm).
+          </p>
+          <div class="mt-2 text-[10px] text-slate-400 bg-brand-dark/60 p-2 rounded-lg font-sans">
+            <strong>Ação corretiva:</strong> Restaurar cota associativa (&lt;&gt;) e reajustar o vão real do galpão antes da fabricação para evitar erro na obra.
+          </div>
+        </div>
+
+        <!-- Issue Card 2: AWS Weld Error -->
+        <div onclick="selectIssue(1)" id="cardIssue1" class="glass-card p-3.5 rounded-xl border border-brand-redline/40 bg-brand-redline/5 hover:bg-brand-redline/10 transition-all cursor-pointer group">
+          <div class="flex items-start justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <span class="w-5 h-5 rounded-md bg-brand-redline text-white font-bold text-xs flex items-center justify-center font-heading shrink-0">2</span>
+              <span class="text-xs font-heading font-bold text-white group-hover:text-brand-redline transition-colors">Especificação de Eletrodo Incorreta</span>
+            </div>
+            <span class="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded bg-brand-redline/20 text-brand-redline font-bold">Crítico</span>
+          </div>
+          <p class="text-[11px] text-slate-300 mt-2 font-mono">
+            Nota da ligação viga-pilar cita <strong class="text-brand-redline font-bold">AWS E6013</strong>. O projeto e carimbo geral exigem <strong class="text-brand-emerald font-bold">AWS E7018</strong>.
+          </p>
+          <div class="mt-2 text-[10px] text-slate-400 bg-brand-dark/60 p-2 rounded-lg font-sans">
+            <strong>Ação corretiva:</strong> Eletrodos E6013 não são homologados para conexões estruturais de alta solicitação. Altere o símbolo para E7018.
+          </div>
+        </div>
+
+        <!-- Issue Card 3: Material Weight Divergence -->
+        <div onclick="selectIssue(2)" id="cardIssue2" class="glass-card p-3.5 rounded-xl border border-brand-warning/40 bg-brand-warning/5 hover:bg-brand-warning/10 transition-all cursor-pointer group">
+          <div class="flex items-start justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <span class="w-5 h-5 rounded-md bg-brand-warning text-brand-dark font-bold text-xs flex items-center justify-center font-heading shrink-0">3</span>
+              <span class="text-xs font-heading font-bold text-white group-hover:text-brand-warning transition-colors">Divergência de Peso na Lista (BOM)</span>
+            </div>
+            <span class="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded bg-brand-warning/20 text-brand-warning font-bold">Alerta</span>
+          </div>
+          <p class="text-[11px] text-slate-300 mt-2 font-mono">
+            Item 01 (2x UPN 200, 4.5m): Peso informado <strong class="text-brand-warning font-bold">180.0 kg</strong>. Peso teórico exato ($7.850\text{ kg/m}^3$): <strong class="text-brand-emerald font-bold">228.6 kg</strong>.
+          </p>
+          <div class="mt-2 text-[10px] text-slate-400 bg-brand-dark/60 p-2 rounded-lg font-sans">
+            <strong>Ação corretiva:</strong> Erro de cálculo manual. Sincronize a lista de materiais automática do Advance Steel para atualizar o faturamento de aço.
+          </div>
+        </div>
+
+        <!-- Issue Card 4: Layer 0 Inappropriate Use -->
+        <div onclick="selectIssue(3)" id="cardIssue3" class="glass-card p-3.5 rounded-xl border border-brand-warning/40 bg-brand-warning/5 hover:bg-brand-warning/10 transition-all cursor-pointer group">
+          <div class="flex items-start justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <span class="w-5 h-5 rounded-md bg-brand-warning text-brand-dark font-bold text-xs flex items-center justify-center font-heading shrink-0">4</span>
+              <span class="text-xs font-heading font-bold text-white group-hover:text-brand-warning transition-colors">Entidade Desenhada na "Layer 0"</span>
+            </div>
+            <span class="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded bg-brand-warning/20 text-brand-warning font-bold">Aviso</span>
+          </div>
+          <p class="text-[11px] text-slate-300 mt-2 font-mono">
+            Chapa presilha intermediária desenhada na camada padrão <strong class="text-slate-100">Layer 0</strong> em vez de <strong class="text-brand-emerald font-bold">EST_PERFIS_CHAPA</strong>.
+          </p>
+          <div class="mt-2 text-[10px] text-slate-400 bg-brand-dark/60 p-2 rounded-lg font-sans">
+            <strong>Ação corretiva:</strong> Mover objeto para a layer correspondente com penas configuradas no arquivo monochrome.ctb.
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Footer: Download PDF Audit Report -->
+      <div class="p-5 border-t border-brand-border/80 bg-brand-card/40 space-y-2">
+        <button onclick="generateAuditReportPDF()" class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-heading font-bold text-xs uppercase tracking-wider transition-all duration-200 shadow-[0_0_20px_rgba(6,182,212,0.3)] flex items-center justify-center gap-2">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          <span>Baixar Desenho Auditado em PDF</span>
+        </button>
+
+        <p class="text-[10px] text-center text-slate-400 font-mono">
+          Inclui carimbo com hash SHA-256 e nuvens de revisão vetoriais
+        </p>
+      </div>
+
+    </aside>
+
+  </main>
+
+  <!-- ================= MONETIZATION & RECHARGE MODAL ================= -->
+  <div id="rechargeModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="bg-brand-surface border border-brand-border rounded-3xl max-w-2xl w-full p-6 shadow-2xl relative overflow-hidden">
+      <!-- Decorative Emerald Glow -->
+      <div class="absolute -top-24 -right-24 w-60 h-60 bg-brand-emerald/15 rounded-full blur-3xl pointer-events-none"></div>
+
+      <!-- Close Button -->
+      <button onclick="closeRechargeModal()" class="absolute top-5 right-5 text-slate-400 hover:text-white p-2 rounded-xl bg-brand-card border border-brand-border transition-colors">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+
+      <!-- Modal Header -->
+      <div class="mb-6">
+        <span class="text-xs font-mono font-bold text-brand-emerald uppercase tracking-widest px-2.5 py-1 rounded bg-brand-emerald/10 border border-brand-emerald/20">
+          Planos & Créditos LeafTek
+        </span>
+        <h3 class="text-xl font-heading font-bold text-white mt-2">Adicionar Créditos de Auditoria DWG</h3>
+        <p class="text-xs text-slate-400 mt-0.5">Liberação instantânea após pagamento via Pix ou Cartão de Crédito.</p>
+      </div>
+
+      <!-- Plans Cards Grid -->
+      <div class="grid grid-cols-3 gap-3 mb-6">
+        
+        <!-- Plan 1: Single -->
+        <div onclick="selectPackage(1, 15)" id="pkgCard1" class="border border-brand-border hover:border-slate-500 bg-brand-card/50 p-4 rounded-2xl cursor-pointer transition-all">
+          <div class="text-xs font-mono text-slate-400">Avulso</div>
+          <div class="text-xl font-heading font-bold text-white mt-1">1 Crédito</div>
+          <div class="text-lg font-mono font-bold text-brand-emerald mt-2">R$ 15</div>
+          <div class="text-[10px] text-slate-400 mt-1">Ideal para validação rápida de 1 prancha</div>
+        </div>
+
+        <!-- Plan 2: Pro Pack (Highlighted) -->
+        <div onclick="selectPackage(10, 99)" id="pkgCard10" class="border-2 border-brand-emerald bg-brand-card p-4 rounded-2xl cursor-pointer relative shadow-[0_0_25px_rgba(0,242,152,0.15)]">
+          <div class="absolute -top-2.5 right-3 bg-brand-emerald text-brand-dark font-mono font-bold text-[9px] uppercase px-2 py-0.5 rounded-full">
+            Mais Escolhido
+          </div>
+          <div class="text-xs font-mono text-brand-emerald font-semibold">Pacote Pro</div>
+          <div class="text-xl font-heading font-bold text-white mt-1">10 Créditos</div>
+          <div class="text-lg font-mono font-bold text-brand-emerald mt-2">R$ 99</div>
+          <div class="text-[10px] text-slate-400 mt-1">Economia de 34% (R$ 9,90 por desenho)</div>
+        </div>
+
+        <!-- Plan 3: Monthly Subscription -->
+        <div onclick="selectPackage(50, 349)" id="pkgCard50" class="border border-brand-border hover:border-slate-500 bg-brand-card/50 p-4 rounded-2xl cursor-pointer transition-all">
+          <div class="text-xs font-mono text-cyan-400 font-semibold">Empresarial</div>
+          <div class="text-xl font-heading font-bold text-white mt-1">50 Créditos</div>
+          <div class="text-lg font-mono font-bold text-cyan-400 mt-2">R$ 349</div>
+          <div class="text-[10px] text-slate-400 mt-1">Para escritórios e projetistas de alta demanda</div>
+        </div>
+
+      </div>
+
+      <!-- Payment Method Simulation: PIX -->
+      <div class="p-4 rounded-2xl bg-brand-card border border-brand-border flex items-center gap-5">
+        <!-- SVG Generated Mock QR Code -->
+        <div class="w-28 h-28 bg-white p-2 rounded-xl flex items-center justify-center shrink-0 shadow">
+          <svg class="w-full h-full text-slate-900" viewBox="0 0 100 100" fill="currentColor">
+            <!-- Simulated QR pixels -->
+            <rect x="0" y="0" width="30" height="30" />
+            <rect x="5" y="5" width="20" height="20" fill="white" />
+            <rect x="10" y="10" width="10" height="10" />
+
+            <rect x="70" y="0" width="30" height="30" />
+            <rect x="75" y="5" width="20" height="20" fill="white" />
+            <rect x="80" y="10" width="10" height="10" />
+
+            <rect x="0" y="70" width="30" height="30" />
+            <rect x="5" y="75" width="20" height="20" fill="white" />
+            <rect x="10" y="80" width="10" height="10" />
+
+            <rect x="38" y="10" width="10" height="10" />
+            <rect x="52" y="10" width="10" height="10" />
+            <rect x="38" y="38" width="24" height="24" />
+            <rect x="70" y="38" width="10" height="10" />
+            <rect x="10" y="45" width="10" height="10" />
+            <rect x="70" y="70" width="15" height="15" />
+            <rect x="45" y="70" width="10" height="10" />
+          </svg>
+        </div>
+
+        <div class="flex-1 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-mono text-slate-300">Pagamento Pix Instantâneo:</span>
+            <span id="pixValueLabel" class="text-sm font-heading font-bold text-brand-emerald">Total: R$ 99,00</span>
+          </div>
+
+          <!-- Pix Copia e Cola Input -->
+          <div class="flex items-center gap-2">
+            <input type="text" id="pixCodeInput" readonly value="00020126580014br.gov.bcb.pix0136leaftek-cad-audit-99@leaftek.com.br520400005303986540599.005802BR" class="flex-1 bg-brand-dark border border-brand-border rounded-xl px-3 py-2 text-[10px] font-mono text-slate-300 truncate focus:outline-none">
+            <button onclick="copyPixCode()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-mono font-medium text-slate-200 transition-colors shrink-0">
+              Copiar
+            </button>
+          </div>
+
+          <!-- Instant Test Approval Button -->
+          <button onclick="simulatePixPaymentSuccess()" class="w-full py-2.5 rounded-xl bg-brand-emerald hover:bg-brand-emeraldHover text-brand-dark font-heading font-bold text-xs uppercase tracking-wider transition-all transform active:scale-95 shadow-[0_0_15px_rgba(0,242,152,0.3)]">
+            ⚡ Simular Confirmação Pix (Aprovação Imediata)
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Message Box -->
+  <div id="toastBox" class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 pointer-events-none transition-all duration-300 flex items-center gap-3 bg-brand-surface border border-brand-emerald/40 px-4 py-3 rounded-2xl shadow-2xl text-xs font-mono text-white">
+    <span class="w-2.5 h-2.5 rounded-full bg-brand-emerald shadow-[0_0_8px_#00F298]"></span>
+    <span id="toastMessage">Operação realizada com sucesso.</span>
+  </div>
+
+  <!-- ================= JAVASCRIPT APPLICATION LOGIC ================= -->
+  <script>
+    // --- Application State ---
+    let userCredits = 12;
+    let selectedPackageCredits = 10;
+    let isAuditing = false;
+    let currentZoom = 1;
+    let redlinesVisible = true;
+    let isGridVisible = true;
+
+    // --- CAD Coordinate Tracker ---
+    function updateCADCoordinates(e) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const rawX = e.clientX - rect.left;
+      const rawY = e.clientY - rect.top;
+      
+      // Convert to realistic engineering millimeters scale
+      const mmX = (rawX * 2.35).toFixed(2);
+      const mmY = (rawY * 2.35).toFixed(2);
+
+      document.getElementById('coordX').innerText = `${mmX} mm`;
+      document.getElementById('coordY').innerText = `${mmY} mm`;
+    }
+
+    // --- Zoom and Pan Controls ---
+    function zoomIn() {
+      if (currentZoom < 2.2) {
+        currentZoom += 0.15;
+        applyZoom();
+      }
+    }
+    function zoomOut() {
+      if (currentZoom > 0.6) {
+        currentZoom -= 0.15;
+        applyZoom();
+      }
+    }
+    function resetZoom() {
+      currentZoom = 1;
+      applyZoom();
+    }
+    function fitToScreen() {
+      currentZoom = 0.95;
+      applyZoom();
+      showToast("Visualizador ajustado ao enquadramento padrão.");
+    }
+    function applyZoom() {
+      const container = document.getElementById('drawingTransformContainer');
+      container.style.transform = `scale(${currentZoom})`;
+    }
+
+    // --- Redlines Visibility Toggle ---
+    function toggleRedlines() {
+      redlinesVisible = !redlinesVisible;
+      const layer = document.getElementById('redlineCloudsLayer');
+      const btn = document.getElementById('btnToggleRedlines');
+      
+      if (redlinesVisible) {
+        layer.style.display = 'block';
+        btn.classList.add('bg-brand-redline/15', 'text-brand-redline');
+        btn.classList.remove('bg-slate-800', 'text-slate-400');
+        showToast("Nuvens de revisão ativadas.");
+      } else {
+        layer.style.display = 'none';
+        btn.classList.remove('bg-brand-redline/15', 'text-brand-redline');
+        btn.classList.add('bg-slate-800', 'text-slate-400');
+        showToast("Nuvens de revisão ocultadas.");
+      }
+    }
+
+    // --- Grid Visibility Toggle ---
+    function toggleGrid() {
+      const viewport = document.getElementById('cadViewport');
+      isGridVisible = !isGridVisible;
+      if (isGridVisible) {
+        viewport.classList.add('cad-grid-pattern', 'cad-grid-major');
+        showToast("Grade técnica CAD: ATIVA");
+      } else {
+        viewport.classList.remove('cad-grid-pattern', 'cad-grid-major');
+        showToast("Grade técnica CAD: DESATIVADA");
+      }
+    }
+
+    // --- Issue Card & Redline Cross-Highlighting ---
+    function selectIssue(index) {
+      // Highlight card in right sidebar
+      for (let i = 0; i < 4; i++) {
+        const card = document.getElementById(`cardIssue${i}`);
+        const redline = document.getElementById(`redlineIssue${i}`);
+        if (i === index) {
+          card.classList.add('ring-2', 'ring-brand-emerald', 'bg-brand-card');
+          card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          if (redline) {
+            redline.style.transform = 'scale(1.05)';
+            redline.style.transformOrigin = 'center';
+            setTimeout(() => { redline.style.transform = 'scale(1)'; }, 400);
+          }
+        } else {
+          card.classList.remove('ring-2', 'ring-brand-emerald');
+        }
+      }
+    }
+
+    // --- File Input Handlers ---
+    function triggerFileInput() {
+      document.getElementById('fileInput').click();
+    }
+    function handleFileSelect(e) {
+      if (e.target.files.length > 0) {
+        const file = e.target.files[0];
+        document.getElementById('fileNameLabel').innerText = file.name;
+        showToast(`Arquivo "${file.name}" carregado.`);
+      }
+    }
+    function handleDragOver(e) {
+      e.preventDefault();
+      document.getElementById('dropZone').classList.add('border-brand-emerald', 'bg-brand-card');
+    }
+    function handleDragLeave(e) {
+      e.preventDefault();
+      document.getElementById('dropZone').classList.remove('border-brand-emerald', 'bg-brand-card');
+    }
+    function handleDrop(e) {
+      e.preventDefault();
+      document.getElementById('dropZone').classList.remove('border-brand-emerald', 'bg-brand-card');
+      if (e.dataTransfer.files.length > 0) {
+        const file = e.dataTransfer.files[0];
+        document.getElementById('fileNameLabel').innerText = file.name;
+        showToast(`Arquivo DWG "${file.name}" importado.`);
+      }
+    }
+    function loadDemoDrawing() {
+      document.getElementById('fileNameLabel').innerText = "Galpao_Estrutural_C-TWIN.dwg";
+      showToast("Projeto de demonstração Advance Steel carregado.");
+    }
+
+    // --- Verification Laser Scanner Flow ---
+    function runAutomatedAudit() {
+      if (isAuditing) return;
+
+      // Check credit balance
+      if (userCredits <= 0) {
+        showToast("Saldo insuficiente. Adquira créditos para auditar o desenho.");
+        openRechargeModal();
+        return;
+      }
+
+      // Deduct 1 credit
+      userCredits--;
+      updateCreditDisplay();
+
+      isAuditing = true;
+      const scanner = document.getElementById('laserScanner');
+      const consoleOverlay = document.getElementById('scanConsoleOverlay');
+      const logContainer = document.getElementById('scanLogsContainer');
+      const progressLabel = document.getElementById('scanProgressPct');
+      const btnRun = document.getElementById('btnRunAudit');
+
+      btnRun.disabled = true;
+      btnRun.classList.add('opacity-50', 'cursor-not-allowed');
+
+      scanner.classList.remove('hidden');
+      consoleOverlay.classList.remove('hidden');
+      logContainer.innerHTML = '';
+
+      const logs = [
+        "Iniciando engine ODA Teigha v26.1...",
+        "Carregando banco de blocos: Galpao_C-TWIN.dwg",
+        "Mapeando entidades na Layer 0 e Defpoints... [FALHA DETECTADA]",
+        "Verificando textos técnicos com dicionário de engenharia...",
+        "Calculando peso volumétrico dos perfis C-TWIN (7.850 kg/m³)...",
+        "Divergência detectada no peso da lista de materiais (Pos 01)!",
+        "Examinando cotas associativas AcDbDimension...",
+        "ALERTA CRÍTICO: Cota sobrescrita 3500 mm (Real: 3450 mm)!",
+        "Checando simbologia de soldagem AWS D1.1...",
+        "Incompatibilidade: AWS E6013 indicada na viga (Exigido: E7018)!",
+        "Auditoria concluída com 4 notas técnicas emitidas."
+      ];
+
+      let step = 0;
+      const interval = setInterval(() => {
+        if (step < logs.length) {
+          const p = document.createElement('div');
+          p.className = 'truncate text-[10px]';
+          p.innerHTML = `<span class="text-brand-emerald">▸</span> ${logs[step]}`;
+          logContainer.appendChild(p);
+          logContainer.scrollTop = logContainer.scrollHeight;
+          
+          const pct = Math.round(((step + 1) / logs.length) * 100);
+          progressLabel.innerText = `${pct}%`;
+          step++;
+        } else {
+          clearInterval(interval);
+          setTimeout(() => {
+            scanner.classList.add('hidden');
+            consoleOverlay.classList.add('hidden');
+            btnRun.disabled = false;
+            btnRun.classList.remove('opacity-50', 'cursor-not-allowed');
+            isAuditing = false;
+            showToast("Auditoria completa! 4 inconformidades mapeadas no desenho.");
+          }, 600);
+        }
+      }, 230);
+    }
+
+    // --- Monetization & Pix Modal Handlers ---
+    function openRechargeModal() {
+      document.getElementById('rechargeModal').classList.remove('hidden');
+    }
+    function closeRechargeModal() {
+      document.getElementById('rechargeModal').classList.add('hidden');
+    }
+    function selectPackage(credits, price) {
+      selectedPackageCredits = credits;
+      
+      // Update UI cards
+      [1, 10, 50].forEach(p => {
+        const card = document.getElementById(`pkgCard${p}`);
+        if (p === credits) {
+          card.classList.add('border-2', 'border-brand-emerald');
+          card.classList.remove('border-brand-border');
+        } else {
+          card.classList.remove('border-2', 'border-brand-emerald');
+          card.classList.add('border-brand-border');
+        }
+      });
+
+      document.getElementById('pixValueLabel').innerText = `Total: R$ ${price},00`;
+      document.getElementById('pixCodeInput').value = `00020126580014br.gov.bcb.pix0136leaftek-cad-audit-${price}@leaftek.com.br5204000053039865405${price}.005802BR`;
+    }
+
+    function copyPixCode() {
+      const copyText = document.getElementById("pixCodeInput");
+      copyText.select();
+      document.execCommand("copy");
+      showToast("Código Pix Copia e Cola copiado para a área de transferência!");
+    }
+
+    function simulatePixPaymentSuccess() {
+      userCredits += selectedPackageCredits;
+      updateCreditDisplay();
+      closeRechargeModal();
+      showToast(`Pagamento Pix aprovado com sucesso! +${selectedPackageCredits} Créditos adicionados.`);
+    }
+
+    function updateCreditDisplay() {
+      document.getElementById('creditCountNumber').innerText = userCredits;
+    }
+
+    // --- Toast Notification Helper ---
+    function showToast(msg) {
+      const toast = document.getElementById('toastBox');
+      const text = document.getElementById('toastMessage');
+      text.innerText = msg;
+      toast.classList.remove('translate-y-20', 'opacity-0', 'pointer-events-none');
+      setTimeout(() => {
+        toast.classList.add('translate-y-20', 'opacity-0', 'pointer-events-none');
+      }, 3500);
+    }
+
+    // --- Instant jsPDF Audit Report Generation ---
+    function generateAuditReportPDF() {
+      const { jsPDF } = window.jspdf;
+      // Generate A4 Landscape Technical Document
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const pageWidth = 297;
+      const pageHeight = 210;
+
+      // Dark Engineering Header Background
+      doc.setFillColor(11, 15, 23);
+      doc.rect(0, 0, pageWidth, 28, 'F');
+
+      // Brand Title
+      doc.setTextColor(0, 242, 152);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.text("LEAFTEK CAD AUDIT SYSTEM", 14, 13);
+
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(148, 163, 184);
+      doc.text("LAUDO TÉCNICO DE AUDITORIA QA/QC DE DESENHO EXECUTIVO • ADVANCE STEEL / DWG", 14, 20);
+
+      // Audit Stamp / Summary Pill
+      doc.setFillColor(255, 51, 75);
+      doc.roundedRect(pageWidth - 65, 8, 51, 12, 2, 2, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.text("STATUS: REPROVADO", pageWidth - 60, 16);
+
+      // Project Meta Box
+      doc.setFillColor(241, 245, 249);
+      doc.setDrawColor(203, 213, 225);
+      doc.roundedRect(14, 34, pageWidth - 28, 22, 2, 2, 'FD');
+
+      doc.setFontSize(8.5);
+      doc.setTextColor(71, 85, 105);
+      doc.setFont('helvetica', 'bold');
+      doc.text("ARQUIVO:", 18, 41);
+      doc.text("RESPONSÁVEL:", 18, 48);
+      doc.text("DATA/HORA:", 120, 41);
+      doc.text("SCORE QA/QC:", 120, 48);
+      doc.text("HASH DE VERIFICAÇÃO:", 200, 41);
+      doc.text("NORMA BASE:", 200, 48);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(15, 23, 42);
+      doc.text("Galpao_Estrutural_C-TWIN.dwg", 42, 41);
+      doc.text("Eng. Lucas Coimbra (Draft Solutions)", 45, 48);
+      doc.text("29/09/2026 - 08:42 BRT", 146, 41);
+      doc.text("68% (4 Apontamentos)", 148, 48);
+      doc.text("9F8A-7C12-EED0-B841", 242, 41);
+      doc.text("AWS D1.1 / ABNT NBR 8800", 228, 48);
+
+      // Section: Non-Conformities Table Header
+      let startY = 64;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(15, 23, 42);
+      doc.text("QUADRO DE INCONFORMIDADES IDENTIFICADAS", 14, startY);
+
+      startY += 5;
+      doc.setFillColor(30, 41, 59);
+      doc.rect(14, startY, pageWidth - 28, 8, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(8);
+      doc.text("ITEM", 17, startY + 5.5);
+      doc.text("CATEGORIA", 30, startY + 5.5);
+      doc.text("DESCRIÇÃO DA NÃO CONFORMIDADE", 80, startY + 5.5);
+      doc.text("GRAVIDADE", 195, startY + 5.5);
+      doc.text("AÇÃO CORRETIVA RECOMENDADA", 225, startY + 5.5);
+
+      // Issue Rows
+      const issues = [
+        {
+          num: "01",
+          cat: "Cotas / Dimensões",
+          desc: "Cota com valor sobrescrito manual (3500 mm vs real 3450 mm).",
+          grav: "CRÍTICO",
+          action: "Restaurar cota real e ajustar vão."
+        },
+        {
+          num: "02",
+          cat: "Soldagem Estrutural",
+          desc: "Nota cita eletrodo AWS E6013 em conexão de pilar/viga.",
+          grav: "CRÍTICO",
+          action: "Substituir especificação por AWS E7018."
+        },
+        {
+          num: "03",
+          cat: "Lista de Materiais",
+          desc: "Peso do C-TWIN informado como 180 kg (Teórico: 228.6 kg).",
+          grav: "ALERTA",
+          action: "Recalcular tabela com densidade 7850 kg/m³."
+        },
+        {
+          num: "04",
+          cat: "Padronização CAD",
+          desc: "Entidade desenhada indevidamente na Layer 0.",
+          grav: "AVISO",
+          action: "Mover peça para layer EST_PERFIS_CHAPA."
+        }
+      ];
+
+      startY += 8;
+      issues.forEach((iss, index) => {
+        const rowY = startY + (index * 14);
+        doc.setFillColor(index % 2 === 0 ? 250 : 255, index % 2 === 0 ? 250 : 255, index % 2 === 0 ? 250 : 255);
+        doc.rect(14, rowY, pageWidth - 28, 14, 'F');
+        doc.setDrawColor(226, 232, 240);
+        doc.line(14, rowY + 14, pageWidth - 14, rowY + 14);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(15, 23, 42);
+        doc.text(iss.num, 17, rowY + 8);
+        doc.text(iss.cat, 30, rowY + 8);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(51, 65, 85);
+        doc.text(iss.desc, 80, rowY + 8);
+
+        // Severity Color
+        if (iss.grav === "CRÍTICO") {
+          doc.setTextColor(220, 38, 38);
+          doc.setFont('helvetica', 'bold');
+        } else {
+          doc.setTextColor(217, 119, 6);
+          doc.setFont('helvetica', 'bold');
+        }
+        doc.text(iss.grav, 195, rowY + 8);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(15, 23, 42);
+        doc.text(iss.action, 225, rowY + 8);
+      });
+
+      // Digital Validation Footer Box
+      const footerY = 145;
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(203, 213, 225);
+      doc.roundedRect(14, footerY, pageWidth - 28, 48, 2, 2, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(15, 23, 42);
+      doc.text("DECLARAÇÃO DE AUDITORIA COMPUTACIONAL AUTOMATIZADA", 18, footerY + 8);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(71, 85, 105);
+      doc.text("Este laudo foi gerado pelo algoritmo LeafTek CAD Audit Pro a partir da leitura direta da árvore de objetos binários do arquivo .DWG.", 18, footerY + 16);
+      doc.text("Os 4 apontamentos acima devem ser sanados no modelo CAD/Advance Steel antes do envio para fabricação e corte CNC.", 18, footerY + 22);
+      doc.text("A liberação do carimbo final de fabricação está condicionada à eliminação integral dos 2 erros de nível CRÍTICO.", 18, footerY + 28);
+
+      // Signature Marks
+      doc.setDrawColor(148, 163, 184);
+      doc.line(18, footerY + 40, 110, footerY + 40);
+      doc.line(140, footerY + 40, 240, footerY + 40);
+
+      doc.setFontSize(7.5);
+      doc.text("Engenheiro Verificador (QA/QC): Lucas Coimbra Lira", 18, footerY + 44);
+      doc.text("Sistema de Auditoria: LeafTek ODA Engine v26.1", 140, footerY + 44);
+
+      // Save PDF
+      doc.save("Laudo_Auditoria_QAQC_Galpao_C-TWIN.pdf");
+      showToast("Laudo técnico em PDF gerado e baixado com sucesso!");
+    }
+  </script>
+</body>
+</html>
