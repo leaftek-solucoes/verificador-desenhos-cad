@@ -1,102 +1,7 @@
-import os
-import shutil
-import tempfile
-import subprocess
-from typing import Dict, Any, List
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import FileResponse
-from fastapi.middleware.cors import CORSMiddleware
-import ezdxf
+from a1_pdf_generator import A1VerificationPDFGenerator
 
-from dimension_checker import DimensionChecker
-from layer_checker import LayerChecker
-from bom_checker import BOMChecker
-from text_checker import TextChecker
-from standard_checker import StandardChecker
-from a3_pdf_generator import A3VerificationPDFGenerator
-
-app = FastAPI(title="LeafTek CAD QA/QC Engine", version="1.2.0")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-REPORTS_DIR = "temp_reports"
-os.makedirs(REPORTS_DIR, exist_ok=True)
-
-SEVERITY_WEIGHT = {"CRITICA": 4, "ALTA": 3, "MEDIA": 2, "BAIXA": 1}
-
-def converter_dwg_para_dxf(dwg_path: str) -> str:
-    """Converte DWG para DXF via LibreDWG automaticamente."""
-    dxf_path = os.path.splitext(dwg_path)[0] + ".dxf"
-    cmd = ["dwg2dxf", dwg_path, "-o", dxf_path]
-    try:
-        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
-        if os.path.exists(dxf_path):
-            return dxf_path
-        raise Exception("Arquivo DXF de saída não foi gerado.")
-    except Exception as e:
-        raise RuntimeError(f"Falha na conversão de DWG para DXF via LibreDWG: {str(e)}")
-
-def executar_auditoria_completa(doc: ezdxf.document.Drawing, filename: str) -> Dict[str, Any]:
-    dim_res = DimensionChecker(tolerance_mm=1.0).check(doc)
-    lay_res = LayerChecker().check(doc)
-    bom_res = BOMChecker(tolerance_pct=5.0).check(doc)
-    txt_res = TextChecker().check(doc)
-    std_res = StandardChecker().check(doc)
-
-    todas_inconformidades: List[Dict[str, Any]] = (
-        dim_res.get("inconformidades", [])
-        + lay_res.get("inconformidades", [])
-        + bom_res.get("inconformidades", [])
-        + txt_res.get("inconformidades", [])
-        + std_res.get("inconformidades", [])
-    )
-
-    todas_inconformidades.sort(
-        key=lambda x: SEVERITY_WEIGHT.get(x.get("gravidade", "BAIXA"), 0),
-        reverse=True
-    )
-
-    criticos = sum(1 for err in todas_inconformidades if err.get("gravidade") == "CRITICA")
-    altas = sum(1 for err in todas_inconformidades if err.get("gravidade") == "ALTA")
-    medias = sum(1 for err in todas_inconformidades if err.get("gravidade") == "MEDIA")
-
-    scores = [
-        dim_res.get("conformidade_percentual", 100.0),
-        lay_res.get("conformidade_percentual", 100.0),
-        bom_res.get("conformidade_percentual", 100.0),
-        txt_res.get("conformidade_percentual", 100.0),
-        std_res.get("conformidade_percentual", 100.0)
-    ]
-    score_geral = round(sum(scores) / len(scores), 1)
-
-    if criticos > 0:
-        status_geral = "REPROVADO"
-    elif altas > 0 or medias > 2:
-        status_geral = "APROVADO COM RESSALVAS"
-    else:
-        status_geral = "APROVADO"
-
-    return {
-        "arquivo": filename,
-        "status_geral": status_geral,
-        "score_conformidade": score_geral,
-        "resumo_erros": {
-            "total": len(todas_inconformidades),
-            "criticos": criticos,
-            "altos": altas,
-            "medios": medias
-        },
-        "inconformidades": todas_inconformidades
-    }
-
-@app.post("/auditar-a3")
-async def auditar_e_gerar_a3(file: UploadFile = File(...)):
+@app.post("/auditar-a1")
+async def auditar_e_gerar_a1(file: UploadFile = File(...)):
     filename = file.filename or "desenho.dwg"
     ext = os.path.splitext(filename)[1].lower()
     base_name = os.path.splitext(filename)[0]
@@ -109,7 +14,6 @@ async def auditar_e_gerar_a3(file: UploadFile = File(...)):
     converted_temporarily = False
 
     try:
-        # Se o usuário enviou DWG, converte para DXF automaticamente
         if ext == ".dwg":
             dxf_path = converter_dwg_para_dxf(input_path)
             converted_temporarily = True
@@ -117,8 +21,9 @@ async def auditar_e_gerar_a3(file: UploadFile = File(...)):
         doc = ezdxf.readfile(dxf_path)
         audit_result = executar_auditoria_completa(doc, filename)
 
-        pdf_filename = f"Verificacao_{base_name}.pdf"
-        pdf_gen = A3VerificationPDFGenerator(output_dir=REPORTS_DIR)
+        # Gera o relatório em ISO A1 Paisagem (841 x 594 mm)
+        pdf_filename = f"Verificacao_A1_{base_name}.pdf"
+        pdf_gen = A1VerificationPDFGenerator(output_dir=REPORTS_DIR)
         pdf_gen.generate(doc, audit_result, pdf_filename)
 
         audit_result["pdf_filename"] = pdf_filename
@@ -132,9 +37,7 @@ async def auditar_e_gerar_a3(file: UploadFile = File(...)):
         if converted_temporarily and os.path.exists(dxf_path):
             os.remove(dxf_path)
 
-@app.get("/download-pdf/{filename}")
-def download_pdf(filename: str):
-    file_path = os.path.join(REPORTS_DIR, filename)
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Arquivo não encontrado.")
-    return FileResponse(file_path, media_type="application/pdf", filename=filename)
+# Mantém rota anterior para compatibilidade
+@app.post("/auditar-a3")
+async def auditar_a3_alias(file: UploadFile = File(...)):
+    return await auditar_e_gerar_a1(file)
