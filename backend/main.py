@@ -1,27 +1,21 @@
 import os
 import shutil
 import tempfile
+import subprocess
 from typing import Dict, Any, List
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import ezdxf
 
-# Verificadores especialistas
 from dimension_checker import DimensionChecker
 from layer_checker import LayerChecker
 from bom_checker import BOMChecker
 from text_checker import TextChecker
 from standard_checker import StandardChecker
-
-# Gerador da Prancha A3
 from a3_pdf_generator import A3VerificationPDFGenerator
 
-app = FastAPI(
-    title="LeafTek CAD Engine - QA/QC Checker",
-    description="Motor de auditoria e emissão de cópias de verificação A3",
-    version="1.1.0"
-)
+app = FastAPI(title="LeafTek CAD QA/QC Engine", version="1.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -34,12 +28,19 @@ app.add_middleware(
 REPORTS_DIR = "temp_reports"
 os.makedirs(REPORTS_DIR, exist_ok=True)
 
-SEVERITY_WEIGHT = {
-    "CRITICA": 4,
-    "ALTA": 3,
-    "MEDIA": 2,
-    "BAIXA": 1
-}
+SEVERITY_WEIGHT = {"CRITICA": 4, "ALTA": 3, "MEDIA": 2, "BAIXA": 1}
+
+def converter_dwg_para_dxf(dwg_path: str) -> str:
+    """Converte DWG para DXF via LibreDWG automaticamente."""
+    dxf_path = os.path.splitext(dwg_path)[0] + ".dxf"
+    cmd = ["dwg2dxf", dwg_path, "-o", dxf_path]
+    try:
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+        if os.path.exists(dxf_path):
+            return dxf_path
+        raise Exception("Arquivo DXF de saída não foi gerado.")
+    except Exception as e:
+        raise RuntimeError(f"Falha na conversão de DWG para DXF via LibreDWG: {str(e)}")
 
 def executar_auditoria_completa(doc: ezdxf.document.Drawing, filename: str) -> Dict[str, Any]:
     dim_res = DimensionChecker(tolerance_mm=1.0).check(doc)
@@ -91,30 +92,31 @@ def executar_auditoria_completa(doc: ezdxf.document.Drawing, filename: str) -> D
             "altos": altas,
             "medios": medias
         },
-        "auditorias": {
-            "cotas": dim_res,
-            "camadas": lay_res,
-            "lista_materiais": bom_res,
-            "textos_e_notas": txt_res,
-            "prancha_e_padroes": std_res
-        },
         "inconformidades": todas_inconformidades
     }
 
 @app.post("/auditar-a3")
 async def auditar_e_gerar_a3(file: UploadFile = File(...)):
-    filename = file.filename or "desenho.dxf"
+    filename = file.filename or "desenho.dwg"
+    ext = os.path.splitext(filename)[1].lower()
     base_name = os.path.splitext(filename)[0]
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".dxf") as tmp:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
         shutil.copyfileobj(file.file, tmp)
-        tmp_path = tmp.name
+        input_path = tmp.name
+
+    dxf_path = input_path
+    converted_temporarily = False
 
     try:
-        doc = ezdxf.readfile(tmp_path)
+        # Se o usuário enviou DWG, converte para DXF automaticamente
+        if ext == ".dwg":
+            dxf_path = converter_dwg_para_dxf(input_path)
+            converted_temporarily = True
+
+        doc = ezdxf.readfile(dxf_path)
         audit_result = executar_auditoria_completa(doc, filename)
 
-        # Gera o arquivo PDF no formato A3 com o traçado real
         pdf_filename = f"Verificacao_{base_name}.pdf"
         pdf_gen = A3VerificationPDFGenerator(output_dir=REPORTS_DIR)
         pdf_gen.generate(doc, audit_result, pdf_filename)
@@ -123,18 +125,16 @@ async def auditar_e_gerar_a3(file: UploadFile = File(...)):
         return audit_result
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Falha na auditoria: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro no processamento: {str(e)}")
     finally:
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
+        if os.path.exists(input_path):
+            os.remove(input_path)
+        if converted_temporarily and os.path.exists(dxf_path):
+            os.remove(dxf_path)
 
 @app.get("/download-pdf/{filename}")
 def download_pdf(filename: str):
     file_path = os.path.join(REPORTS_DIR, filename)
     if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Relatório A3 não encontrado.")
-    return FileResponse(
-        file_path,
-        media_type="application/pdf",
-        filename=filename
-    )
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado.")
+    return FileResponse(file_path, media_type="application/pdf", filename=filename)
