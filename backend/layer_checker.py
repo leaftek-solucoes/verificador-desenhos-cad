@@ -7,42 +7,57 @@ class LayerChecker:
         self.allowed_layers = [lay.upper() for lay in allowed_layers] if allowed_layers else None
 
     def _get_entity_coords(self, entity: Any) -> Dict[str, float]:
-        """Extrai as coordenadas reais no plano cartesiano de qualquer tipo de entidade CAD."""
+        """Extrai as coordenadas cartesianas reais do centroide de qualquer entidade CAD."""
         dxftype = entity.dxftype()
+        try:
+            # Círculos, furos de fixação e arcos
+            if dxftype in ("CIRCLE", "ARC"):
+                c = entity.dxf.center
+                return {"x": round(float(c[0]), 2), "y": round(float(c[1]), 2)}
 
-        # Linhas
-        if dxftype == "LINE":
-            pt = entity.dxf.start
-            return {"x": round(float(pt[0]), 2), "y": round(float(pt[1]), 2)}
-
-        # Círculos, furos e arcos (usam center, não insert)
-        if dxftype in ("CIRCLE", "ARC"):
-            pt = entity.dxf.center
-            return {"x": round(float(pt[0]), 2), "y": round(float(pt[1]), 2)}
-
-        # Polilinhas leves (perfil de chapas, contornos, dobras)
-        if dxftype == "LWPOLYLINE":
-            try:
+            # Polilinhas (contornos de chapas, dobras, perfis)
+            if dxftype == "LWPOLYLINE":
                 pts = entity.get_points("xy")
                 if pts:
-                    return {"x": round(float(pts[0][0]), 2), "y": round(float(pts[0][1]), 2)}
-            except Exception:
-                pass
+                    xs = [p[0] for p in pts]
+                    ys = [p[1] for p in pts]
+                    return {
+                        "x": round(float(sum(xs) / len(xs)), 2),
+                        "y": round(float(sum(ys) / len(ys)), 2)
+                    }
 
-        # Polilinhas 2D/3D pesadas
-        if dxftype == "POLYLINE":
-            try:
-                vertices = list(entity.vertices)
-                if vertices:
-                    loc = vertices[0].dxf.location
-                    return {"x": round(float(loc[0]), 2), "y": round(float(loc[1]), 2)}
-            except Exception:
-                pass
+            # Segmentos de linha
+            if dxftype == "LINE":
+                s = entity.dxf.start
+                e = entity.dxf.end
+                return {
+                    "x": round(float((s[0] + e[0]) / 2.0), 2),
+                    "y": round(float((s[1] + e[1]) / 2.0), 2)
+                }
 
-        # Textos, blocos e símbolos de cota
-        if hasattr(entity.dxf, "insert"):
-            pt = entity.dxf.insert
-            return {"x": round(float(pt[0]), 2), "y": round(float(pt[1]), 2)}
+            # Polilinhas 2D/3D pesadas
+            if dxftype == "POLYLINE":
+                verts = list(entity.vertices)
+                if verts:
+                    xs = [v.dxf.location[0] for v in verts]
+                    ys = [v.dxf.location[1] for v in verts]
+                    return {
+                        "x": round(float(sum(xs) / len(xs)), 2),
+                        "y": round(float(sum(ys) / len(ys)), 2)
+                    }
+
+            # Textos, blocos e símbolos
+            if hasattr(entity.dxf, "insert"):
+                ins = entity.dxf.insert
+                return {"x": round(float(ins[0]), 2), "y": round(float(ins[1]), 2)}
+
+            # Defpoints de cotas
+            if hasattr(entity.dxf, "defpoint"):
+                dp = entity.dxf.defpoint
+                return {"x": round(float(dp[0]), 2), "y": round(float(dp[1]), 2)}
+
+        except Exception:
+            pass
 
         return {"x": 0.0, "y": 0.0}
 
@@ -80,7 +95,7 @@ class LayerChecker:
                         "espaco": space_name,
                         "layer": layer_name,
                         "gravidade": "ALTA",
-                        "descricao": f"Entidade '{entity.dxftype()}' desenhada na 'Layer 0'. Deve estar em camada técnica própria.",
+                        "descricao": f"Elemento '{entity.dxftype()}' desenhado na 'Layer 0'. Alocar na camada técnica correspondente.",
                         "posicao": coords
                     })
 
@@ -94,7 +109,7 @@ class LayerChecker:
                         "espaco": space_name,
                         "layer": layer_name,
                         "gravidade": "CRITICA",
-                        "descricao": f"Entidade '{entity.dxftype()}' na camada Defpoints (não será impressa em fábrica).",
+                        "descricao": f"Elemento '{entity.dxftype()}' na camada Defpoints (não será impresso na plotagem de fabricação).",
                         "posicao": coords
                     })
 
@@ -104,20 +119,14 @@ class LayerChecker:
 
                 if entity_color != 256 or entity_linetype != "BYLAYER":
                     non_bylayer_count += 1
-                    detalhes = []
-                    if entity_color != 256:
-                        detalhes.append(f"Cor fixa ({entity_color})")
-                    if entity_linetype != "BYLAYER":
-                        detalhes.append(f"Linetype fixo ({entity_linetype})")
-
                     issues.append({
                         "id": f"BYL-{non_bylayer_count}",
-                        "tipo": "Propriedade fora de ByLayer",
+                        "tipo": "Propriedade Fora de ByLayer",
                         "entidade": entity.dxftype(),
                         "espaco": space_name,
                         "layer": layer_name,
                         "gravidade": "MEDIA",
-                        "descricao": f"Objeto com {' e '.join(detalhes)} em vez de ByLayer.",
+                        "descricao": "Objeto com cor ou tipo de linha forçado manualmente em vez de ByLayer.",
                         "posicao": coords
                     })
 
