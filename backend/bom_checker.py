@@ -1,130 +1,164 @@
+cd /workspaces/verificador-desenhos-cad/backend 2>/dev/null || cd backend
+
+cat << 'EOF' > bom_checker.py
 import re
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Tuple
 import ezdxf
 
 class BOMChecker:
-    def __init__(self, tolerance_pct: float = 5.0):
-        """
-        :param tolerance_pct: Divergência percentual máxima tolerada entre peso calculado e informado.
-        """
-        self.steel_density_kg_m3 = 7850.0  # Densidade padrão do aço estrutural
-        self.tolerance_pct = tolerance_pct
+    def __init__(self, steel_density: float = 7850.0, tolerance_kg: float = 0.15):
+        # Densidade do aço em kg/m³ e tolerância para arredondamentos
+        self.steel_density = steel_density
+        self.tolerance_kg = tolerance_kg
 
-    def _extract_plate_dimensions(self, desc: str) -> tuple[float, float, float] | None:
-        """
-        Extrai espessura, largura e comprimento de designações de chapa.
-        Exemplos: 'PL 12.5 x 200 x 350', '# 1/2" x 200 x 300', 'CH 16 x 150 x 200'
-        """
-        desc_clean = desc.upper().replace(",", ".").replace('"', "")
-        match = re.search(r"(?:PL|CH|#)\s*([0-9.]+)\s*[X*]\s*([0-9.]+)\s*[X*]\s*([0-9.]+)", desc_clean)
+    def _extract_all_texts(self, layout) -> List[Dict[str, Any]]:
+        """Extrai todos os textos e MTexts do espaço com suas coordenadas."""
+        texts = []
+        for ent in layout.query("TEXT MTEXT"):
+            val = ""
+            if ent.dxftype() == "TEXT":
+                val = ent.dxf.text
+            elif ent.dxftype() == "MTEXT":
+                val = ent.text
+            
+            # Limpa formatações internas de AutoCAD (\P, \A1, etc.)
+            clean_val = re.sub(r"\\[A-Za-z0-9]+;?", " ", val).strip()
+            clean_val = clean_val.replace("\\P", " ").strip()
+            
+            pt = getattr(ent.dxf, "insert", (0, 0, 0))
+            if clean_val:
+                texts.append({
+                    "text": clean_val,
+                    "x": float(pt[0]),
+                    "y": float(pt[1]),
+                    "entity": ent
+                })
+        return texts
+
+    def _parse_float(self, text: str) -> float:
+        """Converte strings numéricas com vírgula ou ponto para float."""
+        match = re.search(r"(\d+[\.,]\d+|\d+)", text)
         if match:
-            try:
-                t = float(match.group(1)) # mm
-                w = float(match.group(2)) # mm
-                l = float(match.group(3)) # mm
-                return (t, w, l)
-            except ValueError:
-                return None
-        return None
-
-    def _calculate_plate_weight(self, t_mm: float, w_mm: float, l_mm: float) -> float:
-        """Calcula o peso teórico de uma chapa de aço em kg."""
-        vol_m3 = (t_mm / 1000.0) * (w_mm / 1000.0) * (l_mm / 1000.0)
-        return vol_m3 * self.steel_density_kg_m3
+            return float(match.group(1).replace(",", "."))
+        return 0.0
 
     def check(self, doc: ezdxf.document.Drawing) -> Dict[str, Any]:
         issues: List[Dict[str, Any]] = []
-        total_items_bom = 0
-        divergent_weights_count = 0
+        
+        # Localiza o layout principal
+        target_layout = doc.modelspace()
+        for lay in doc.layouts:
+            if lay.name.lower() != "model":
+                ents = [e for e in lay if e.dxftype() != "VIEWPORT"]
+                if len(ents) > 10:
+                    target_layout = lay
+                    break
 
-        # Varrer textos e tabelas procurando linhas de lista de material
-        spaces = [doc.modelspace()]
-        for layout in doc.layouts:
-            if layout.name.lower() != "model":
-                spaces.append(layout)
+        texts = self._extract_all_texts(target_layout)
 
-        for space in spaces:
-            space_name = getattr(space, "name", "Model")
+        # 1. Localiza o bloco ou cabeçalho da Lista de Material
+        bom_header = None
+        peso_total_decl = None
+        peso_total_pos = {"x": 0.0, "y": 0.0}
+        peso_total_valor = 0.0
+
+        for t in texts:
+            txt_upper = t["text"].upper()
+            if "LISTA DE MATERIAL" in txt_upper or "LISTA DE MATERIAIS" in txt_upper:
+                bom_header = t
+            if "PESO TOTAL" in txt_upper:
+                peso_total_decl = t
+                peso_total_pos = {"x": t["x"], "y": t["y"]}
+                peso_total_valor = self._parse_float(t["text"])
+
+        if not bom_header and not peso_total_decl:
+            return {
+                "modulo": "bom_checker",
+                "status": "APROVADO",
+                "mensagem": "Nenhuma Lista de Material identificada na folha.",
+                "inconformidades": []
+            }
+
+        # 2. Varredura espacial dos textos da tabela de materiais
+        # Delimita a região da tabela com base na proximidade do cabeçalho / peso total
+        ref_x = peso_total_pos["x"] if peso_total_decl else bom_header["x"]
+        ref_y = peso_total_pos["y"] if peso_total_decl else bom_header["y"]
+
+        table_texts = [
+            t for t in texts
+            if abs(t["x"] - ref_x) < 350.0 and abs(t["y"] - ref_y) < 300.0
+        ]
+
+        # 3. Extração e reconciliação dos itens da tabela
+        # Agrupa textos que compartilham a mesma linha (Y aproximado)
+        rows_by_y: Dict[float, List[Dict[str, Any]]] = {}
+        for t in table_texts:
+            # Agrupa com tolerância de 5mm na coordenada Y
+            matched_y = None
+            for ry in rows_by_y.keys():
+                if abs(t["y"] - ry) < 5.0:
+                    matched_y = ry
+                    break
+            if matched_y is not None:
+                rows_by_y[matched_y].append(t)
+            else:
+                rows_by_y[t["y"]] = [t]
+
+        soma_pesos_calculada = 0.0
+        linhas_processadas = 0
+
+        for y_coord, row_items in rows_by_y.items():
+            # Ordena os textos da linha da esquerda para a direita (coordenada X crescente)
+            row_items.sort(key=lambda item: item["x"])
+            row_str = " | ".join([it["text"] for it in row_items])
             
-            # 1. Varredura por entidades ACAD_TABLE (Tabelas nativas de prancha)
-            for table in space.query("ACAD_TABLE"):
-                try:
-                    for row_idx in range(table.nrows):
-                        for col_idx in range(table.ncols):
-                            cell_text = table.get_cell_text(row_idx, col_idx).strip()
-                            dims = self._extract_plate_dimensions(cell_text)
-                            if dims:
-                                total_items_bom += 1
-                                t, w, l = dims
-                                peso_teorico = self._calculate_plate_weight(t, w, l)
+            # Pula cabeçalhos e a linha do próprio peso total
+            if "POS" in row_str.upper() or "QTD" in row_str.upper() or "PESO TOTAL" in row_str.upper():
+                continue
 
-                                # Tenta buscar peso indicado na célula vizinha
-                                if col_idx + 1 < table.ncols:
-                                    next_cell = table.get_cell_text(row_idx, col_idx + 1)
-                                    match_peso = re.search(r"[-+]?\d+(?:[.,]\d+)?", next_cell)
-                                    if match_peso:
-                                        peso_informado = float(match_peso.group(0).replace(",", "."))
-                                        erro_pct = abs(peso_informado - peso_teorico) / (peso_teorico or 1) * 100
+            # Tenta extrair: Quantidade e Peso (Unitário ou da Linha)
+            nums = []
+            for it in row_items:
+                fval = self._parse_float(it["text"])
+                if fval > 0.0:
+                    nums.append((fval, it))
 
-                                        if erro_pct > self.tolerance_pct:
-                                            divergent_weights_count += 1
-                                            issues.append({
-                                                "id": f"BOM-TAB-{total_items_bom}",
-                                                "tipo": "Erro de Peso Teórico na BOM",
-                                                "espaco": space_name,
-                                                "item": cell_text,
-                                                "peso_declarado_kg": round(peso_informado, 2),
-                                                "peso_calculado_kg": round(peso_teorico, 2),
-                                                "desvio_percentual": round(erro_pct, 1),
-                                                "gravidade": "CRITICA",
-                                                "descricao": f"Chapa '{cell_text}': peso informado de {peso_informado:.1f} kg diverge do cálculo teórico de {peso_teorico:.1f} kg (desvio de {erro_pct:.1f}%).",
-                                                "posicao": {"x": round(table.dxf.insert[0], 2), "y": round(table.dxf.insert[1], 2)}
-                                            })
-                except Exception:
-                    pass
+            # Se a linha contiver números compatíveis com Qtd e Peso
+            if len(nums) >= 2:
+                # O último número da linha geralmente é o Peso Total do Item ou Peso Unitário
+                peso_val, peso_item = nums[-1]
+                qtd_val = nums[0][0]
 
-            # 2. Varredura por textos soltos MText/Text contendo chapas com peso declarado
-            for txt in space.query("TEXT MTEXT"):
-                raw = txt.dxf.text if txt.dxftype() == "TEXT" else txt.text
-                if not raw:
-                    continue
-                dims = self._extract_plate_dimensions(raw)
-                if dims:
-                    # Procura se há menção a "kg" na mesma linha
-                    match_kg = re.search(r"(\d+(?:[.,]\d+)?)\s*(?:KG|kg)", raw)
-                    if match_kg:
-                        total_items_bom += 1
-                        t, w, l = dims
-                        peso_teorico = self._calculate_plate_weight(t, w, l)
-                        peso_declarado = float(match_kg.group(1).replace(",", "."))
-                        erro_pct = abs(peso_declarado - peso_teorico) / (peso_teorico or 1) * 100
+                if 0.0 < peso_val < 5000.0:
+                    soma_pesos_calculada += peso_val
+                    linhas_processadas += 1
 
-                        if erro_pct > self.tolerance_pct:
-                            divergent_weights_count += 1
-                            pt = getattr(txt.dxf, "insert", [0, 0])
-                            issues.append({
-                                "id": f"BOM-TXT-{total_items_bom}",
-                                "tipo": "Erro de Peso na Anotação",
-                                "espaco": space_name,
-                                "item": raw.strip(),
-                                "peso_declarado_kg": round(peso_declarado, 2),
-                                "peso_calculado_kg": round(peso_teorico, 2),
-                                "desvio_percentual": round(erro_pct, 1),
-                                "gravidade": "ALTA",
-                                "descricao": f"Elemento '{raw.strip()}': peso indicado de {peso_declarado:.1f} kg diverge do peso real de {peso_teorico:.1f} kg.",
-                                "posicao": {"x": round(pt[0], 2), "y": round(pt[1], 2)}
-                            })
+        # 4. Auditoria de Divergência do Peso Total
+        if peso_total_valor > 0.0 and soma_pesos_calculada > 0.0:
+            diferenca = abs(peso_total_valor - soma_pesos_calculada)
 
-        conformidade = (
-            round(((total_items_bom - divergent_weights_count) / total_items_bom) * 100, 1)
-            if total_items_bom > 0 else 100.0
-        )
+            if diferenca > self.tolerance_kg:
+                issues.append({
+                    "id": "BOM-PESO-01",
+                    "tipo": "Erro na Soma da Lista de Materiais",
+                    "gravidade": "CRITICA",
+                    "descricao": (
+                        f"Divergência no Peso Total: Declarado = {peso_total_valor:.2f} kg, "
+                        f"Soma calculada dos itens = {soma_pesos_calculada:.2f} kg "
+                        f"(Diferença: {diferenca:.2f} kg)."
+                    ),
+                    "posicao": peso_total_pos
+                })
+
+        conformidade = 100.0 if len(issues) == 0 else 0.0
 
         return {
             "modulo": "bom_checker",
-            "itens_bom_analisados": total_items_bom,
-            "pesos_divergentes": divergent_weights_count,
+            "peso_total_declarado_kg": peso_total_valor,
+            "peso_total_calculado_kg": round(soma_pesos_calculada, 2),
+            "itens_auditados": linhas_processadas,
             "conformidade_percentual": conformidade,
-            "status": "REPROVADO" if divergent_weights_count > 0 else "APROVADO",
+            "status": "REPROVADO" if len(issues) > 0 else "APROVADO",
             "inconformidades": issues
         }
+EOF
