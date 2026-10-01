@@ -1,27 +1,30 @@
 import os
+import re
+import uuid
 import shutil
-import tempfile
 import subprocess
+from datetime import datetime
 from typing import Dict, Any, List
+
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+
 import ezdxf
 from ezdxf import recover
 
-from dimension_checker import DimensionChecker
+# Módulos de auditoria e gerador de pranchas
 from layer_checker import LayerChecker
 from bom_checker import BOMChecker
-from text_checker import TextChecker
-from standard_checker import StandardChecker
 from a1_pdf_generator import A1VerificationPDFGenerator
 
 app = FastAPI(
     title="LeafTek CAD QA/QC Engine",
-    description="Motor de auditoria de projetos DWG/DXF com emissão de pranchas A1",
-    version="1.3.1"
+    description="Motor automatizado de verificação técnica de desenhos mecânicos e estruturais (NBR 8800 / AWS D1.1)",
+    version="2.5.0"
 )
 
+# Habilita CORS total para conexões via navegador / Codespaces
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -30,185 +33,261 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+TEMP_DIR = "temp_uploads"
 REPORTS_DIR = "temp_reports"
+os.makedirs(TEMP_DIR, exist_ok=True)
 os.makedirs(REPORTS_DIR, exist_ok=True)
 
-SEVERITY_WEIGHT = {
-    "CRITICA": 4,
-    "ALTA": 3,
-    "MEDIA": 2,
-    "BAIXA": 1
-}
 
-def localizar_executavel_dwg2dxf() -> str:
-    """Busca o executável dwg2dxf no PATH e em diretórios padrão do Linux."""
-    caminho = shutil.which("dwg2dxf")
-    if caminho:
-        return caminho
-    for padrao in ["/usr/bin/dwg2dxf", "/usr/local/bin/dwg2dxf"]:
-        if os.path.exists(padrao) and os.access(padrao, os.X_OK):
-            return padrao
-    raise RuntimeError(
-        "O utilitário 'dwg2dxf' (LibreDWG) não está instalado no servidor. "
-        "Execute no terminal: sudo apt update && sudo apt install -y libredwg-tools"
-    )
+# ==============================================================================
+# AUDITOR DE COTAS SOBRESCRITAS (DIMENSION OVERRIDES)
+# ==============================================================================
+class DimensionChecker:
+    """Detecta cotas com valores digitados manualmente (override), mascarando erros de projeto."""
+    
+    def check(self, doc: ezdxf.document.Drawing) -> Dict[str, Any]:
+        issues: List[Dict[str, Any]] = []
+        count_dims = 0
+        overridden_count = 0
 
-def converter_dwg_para_dxf(dwg_path: str) -> str:
-    """
-    Converte arquivos DWG para DXF via LibreDWG com sintaxe estrita e tolerância a avisos.
-    """
-    executavel = localizar_executavel_dwg2dxf()
-    dxf_path = os.path.splitext(dwg_path)[0] + ".dxf"
+        target_layout = doc.modelspace()
+        for lay in doc.layouts:
+            if lay.name.lower() != "model":
+                if sum(1 for e in lay if e.dxftype() != "VIEWPORT") > 10:
+                    target_layout = lay
+                    break
 
-    # Comando seguro: -y (forçar overwrite), -o (arquivo de saída)
-    cmd = [executavel, "-y", "-o", dxf_path, dwg_path]
+        for dim in target_layout.query("DIMENSION"):
+            count_dims += 1
+            custom_text = dim.dxf.get("text", "").strip()
+
+            # No AutoCAD, "<>" representa a medição real paramétrica
+            if custom_text and custom_text != "<>" and custom_text != "":
+                # Se não contiver "<>", a cota foi forçada com texto fixo
+                if "<>" not in custom_text:
+                    overridden_count += 1
+                    pt = getattr(dim.dxf, "text_midpoint", None) or getattr(dim.dxf, "defpoint", (0, 0))
+                    
+                    issues.append({
+                        "id": f"DIM-OVR-{overridden_count}",
+                        "tipo": "Cota Sobrescrita (Override)",
+                        "gravidade": "CRITICA",
+                        "descricao": f"Cota com medição adulterada para '{custom_text}'. Deve utilizar a medição paramétrica (<>).",
+                        "posicao": {"x": round(float(pt[0]), 2), "y": round(float(pt[1]), 2)}
+                    })
+
+        return {
+            "modulo": "dimension_checker",
+            "total_cotas": count_dims,
+            "cotas_sobrescritas": overridden_count,
+            "status": "REPROVADO" if overridden_count > 0 else "APROVADO",
+            "inconformidades": issues
+        }
+
+
+# ==============================================================================
+# AUDITOR DE NOTAS GERAIS E NORMAS TÉCNICAS
+# ==============================================================================
+class StandardNotesChecker:
+    """Verifica notas obrigatórias de caldeiraria e fabricação conforme NBR 8800 / AWS."""
+    
+    def check(self, doc: ezdxf.document.Drawing) -> Dict[str, Any]:
+        issues: List[Dict[str, Any]] = []
+        all_text = ""
+
+        for entity in doc.modelspace().query("TEXT MTEXT"):
+            t = entity.dxf.text if entity.dxftype() == "TEXT" else entity.text
+            all_text += " " + t.upper()
+
+        for lay in doc.layouts:
+            if lay.name.lower() != "model":
+                for entity in lay.query("TEXT MTEXT"):
+                    t = entity.dxf.text if entity.dxftype() == "TEXT" else entity.text
+                    all_text += " " + t.upper()
+
+        # 1. Nota de Unidade Padrão
+        if "MILÍMETRO" not in all_text and "MILIMETRO" not in all_text and "MM" not in all_text:
+            issues.append({
+                "id": "NOTE-MISS-1",
+                "tipo": "Nota Obrigatória Ausente",
+                "gravidade": "MEDIA",
+                "descricao": "Nota de unidade: 'DIMENSÕES EM MILÍMETROS' não identificada na prancha.",
+                "posicao": {"x": 0.0, "y": 0.0}
+            })
+
+        # 2. Especificação de Eletrodo / Soldagem
+        if "AWS" not in all_text and "E7018" not in all_text and "SOLDA" not in all_text:
+            issues.append({
+                "id": "NOTE-MISS-2",
+                "tipo": "Especificação Técnica de Solda",
+                "gravidade": "BAIXA",
+                "descricao": "Especificação de processo de soldagem ou eletrodo estrutural (AWS / NBR) não informada.",
+                "posicao": {"x": 0.0, "y": 0.0}
+            })
+
+        return {
+            "modulo": "standard_notes_checker",
+            "status": "APROVADO COM RESSALVA" if issues else "APROVADO",
+            "inconformidades": issues
+        }
+
+
+# ==============================================================================
+# UTILITÁRIO DE CONVERSÃO DWG -> DXF (LIBREDWG)
+# ==============================================================================
+def convert_dwg_to_dxf(input_dwg_path: str, output_dxf_path: str):
+    """Converte arquivo DWG para DXF via utilitário nativo dwg2dxf."""
     try:
-        res = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=40
-        )
-        if os.path.exists(dxf_path) and os.path.getsize(dxf_path) > 100:
-            return dxf_path
-
-        # Tentativa secundária: deixar o dwg2dxf gerar o DXF no mesmo diretório por padrão
-        cmd_simples = [executavel, "-y", dwg_path]
-        subprocess.run(cmd_simples, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=40)
-        if os.path.exists(dxf_path) and os.path.getsize(dxf_path) > 100:
-            return dxf_path
-
-        erro_detalhe = res.stderr.decode("utf-8", errors="ignore")
-        raise RuntimeError(f"O LibreDWG não gerou o DXF: {erro_detalhe[:250]}")
+        cmd = ["dwg2dxf", "-y", "-o", output_dxf_path, input_dwg_path]
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=40)
+        
+        if not os.path.exists(output_dxf_path) or os.path.getsize(output_dxf_path) == 0:
+            raise RuntimeError(f"Falha na conversão do DWG. Log: {result.stderr or result.stdout}")
+    except FileNotFoundError:
+        raise RuntimeError("O utilitário 'dwg2dxf' não foi encontrado no sistema Linux.")
     except subprocess.TimeoutExpired:
-        raise RuntimeError("Tempo limite de conversão excedido (DWG muito denso).")
-    except Exception as e:
-        raise RuntimeError(f"Erro na conversão DWG->DXF: {str(e)}")
+        raise RuntimeError("Tempo limite de 40s excedido ao processar arquivo DWG.")
 
-def executar_auditoria_completa(doc: ezdxf.document.Drawing, filename: str) -> Dict[str, Any]:
-    dim_res = DimensionChecker(tolerance_mm=1.0).check(doc)
-    lay_res = LayerChecker().check(doc)
-    bom_res = BOMChecker(tolerance_pct=5.0).check(doc)
-    txt_res = TextChecker().check(doc)
-    std_res = StandardChecker().check(doc)
 
-    todas_inconformidades: List[Dict[str, Any]] = (
-        dim_res.get("inconformidades", [])
-        + lay_res.get("inconformidades", [])
-        + bom_res.get("inconformidades", [])
-        + txt_res.get("inconformidades", [])
-        + std_res.get("inconformidades", [])
-    )
+# ==============================================================================
+# ROTAS DA API FASTAPI
+# ==============================================================================
+@app.get("/")
+def health_check():
+    return {
+        "sistema": "LeafTek CAD QA/QC Engine",
+        "status": "OPERACIONAL",
+        "padroes_suportados": ["ABNT NBR 8800", "AWS D1.1", "ISO A1"],
+        "versao": "2.5.0"
+    }
 
-    todas_inconformidades.sort(
-        key=lambda x: SEVERITY_WEIGHT.get(x.get("gravidade", "BAIXA"), 0),
-        reverse=True
-    )
 
-    criticos = sum(1 for err in todas_inconformidades if err.get("gravidade") == "CRITICA")
-    altas = sum(1 for err in todas_inconformidades if err.get("gravidade") == "ALTA")
-    medias = sum(1 for err in todas_inconformidades if err.get("gravidade") == "MEDIA")
+@app.post("/audit")
+@app.post("/upload")
+async def audit_cad_file(file: UploadFile = File(...)):
+    filename = file.filename
+    ext = os.path.splitext(filename)[1].lower()
 
-    scores = [
-        dim_res.get("conformidade_percentual", 100.0),
-        lay_res.get("conformidade_percentual", 100.0),
-        bom_res.get("conformidade_percentual", 100.0),
-        txt_res.get("conformidade_percentual", 100.0),
-        std_res.get("conformidade_percentual", 100.0)
-    ]
-    score_geral = round(sum(scores) / len(scores), 1)
+    if ext not in [".dwg", ".dxf"]:
+        raise HTTPException(status_code=400, detail="Formato não suportado. Envie arquivos .DWG ou .DXF.")
 
-    if criticos > 0:
+    file_id = str(uuid.uuid4())[:8]
+    temp_input = os.path.join(TEMP_DIR, f"{file_id}_{filename}")
+    dxf_target = os.path.join(TEMP_DIR, f"{file_id}_converted.dxf") if ext == ".dwg" else temp_input
+
+    # 1. Salva arquivo enviado no disco temporário
+    with open(temp_input, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    # 2. Converte para DXF caso seja DWG
+    if ext == ".dwg":
+        try:
+            convert_dwg_to_dxf(temp_input, dxf_target)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Erro na conversão DWG: {str(e)}")
+
+    # 3. Leitura com Recuperação Geométrica (ezdxf.recover)
+    try:
+        doc, auditor = recover.readfile(dxf_target)
+    except Exception:
+        try:
+            doc = ezdxf.readfile(dxf_target)
+        except Exception as e:
+            raise HTTPException(status_code=422, detail=f"Não foi possível carregar a geometria CAD: {str(e)}")
+
+    # ==============================================================================
+    # 4. EXECUÇÃO DOS MÓDULOS DE AUDITORIA
+    # ==============================================================================
+    inconformidades: List[Dict[str, Any]] = []
+
+    # Auditoria de Camadas e Propriedades ByLayer
+    layer_res = LayerChecker().check(doc)
+    inconformidades.extend(layer_res.get("inconformidades", []))
+
+    # Auditoria de Cotas Sobrescritas / Adulteradas
+    dim_res = DimensionChecker().check(doc)
+    inconformidades.extend(dim_res.get("inconformidades", []))
+
+    # Auditoria da Lista de Materiais e Pesos Teóricos (BOM)
+    bom_res = BOMChecker(steel_density=7850.0, tolerance_kg=0.15).check(doc)
+    inconformidades.extend(bom_res.get("inconformidades", []))
+
+    # Auditoria de Notas Gerais de Projeto
+    notes_res = StandardNotesChecker().check(doc)
+    inconformidades.extend(notes_res.get("inconformidades", []))
+
+    # ==============================================================================
+    # 5. CÁLCULO DO SCORE DE CONFORMIDADE E STATUS FINAL
+    # ==============================================================================
+    penalidades = {"CRITICA": 25.0, "ALTA": 10.0, "MEDIA": 4.0, "BAIXA": 1.5}
+    pontos_perdidos = sum(penalidades.get(err.get("gravidade", "MEDIA"), 5.0) for err in inconformidades)
+    score_final = max(0.0, round(100.0 - pontos_perdidos, 1))
+
+    tem_critica = any(e.get("gravidade") == "CRITICA" for e in inconformidades)
+    tem_alta = any(e.get("gravidade") == "ALTA" for e in inconformidades)
+
+    if tem_critica or tem_alta or score_final < 80.0:
         status_geral = "REPROVADO"
-    elif altas > 0 or medias > 2:
-        status_geral = "APROVADO COM RESSALVAS"
+    elif inconformidades:
+        status_geral = "APROVADO COM RESSALVA"
     else:
         status_geral = "APROVADO"
 
-    return {
+    audit_result = {
         "arquivo": filename,
+        "data_verificacao": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
         "status_geral": status_geral,
-        "score_conformidade": score_geral,
-        "resumo_erros": {
-            "total": len(todas_inconformidades),
-            "criticos": criticos,
-            "altos": altas,
-            "medios": medias
+        "score_conformidade": score_final,
+        "resumo_auditoria": {
+            "total_inconformidades": len(inconformidades),
+            "camadas": layer_res.get("status"),
+            "cotas": dim_res.get("status"),
+            "lista_material": bom_res.get("status"),
+            "notas_gerais": notes_res.get("status")
         },
-        "auditorias": {
-            "cotas": dim_res,
-            "camadas": lay_res,
-            "lista_materiais": bom_res,
-            "textos_e_notas": txt_res,
-            "prancha_e_padroes": std_res
+        "detalhes_bom": {
+            "peso_declarado_kg": bom_res.get("peso_total_declarado_kg", 0.0),
+            "peso_calculado_kg": bom_res.get("peso_total_calculado_kg", 0.0),
+            "itens_auditados": bom_res.get("itens_auditados", 0)
         },
-        "inconformidades": todas_inconformidades
+        "inconformidades": inconformidades
     }
 
-@app.post("/auditar-a1")
-async def auditar_e_gerar_a1(file: UploadFile = File(...)):
-    filename = file.filename or "desenho.dwg"
-    ext = os.path.splitext(filename)[1].lower()
-    base_name = os.path.splitext(filename)[0]
-
-    if ext not in [".dwg", ".dxf"]:
-        raise HTTPException(
-            status_code=400,
-            detail="Formato incompatível. Envie um arquivo .dwg ou .dxf."
-        )
-
-    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
-        shutil.copyfileobj(file.file, tmp)
-        input_path = tmp.name
-
-    dxf_path = input_path
-    converted_temporarily = False
-
+    # ==============================================================================
+    # 6. GERAÇÃO DA CÓPIA DE VERIFICAÇÃO TÉCNICA A1 (PDF)
+    # ==============================================================================
+    pdf_filename = f"Verificacao_A1_{os.path.splitext(filename)[0]}.pdf"
+    pdf_generator = A1VerificationPDFGenerator(output_dir=REPORTS_DIR)
+    
     try:
-        if ext == ".dwg":
-            dxf_path = converter_dwg_para_dxf(input_path)
-            converted_temporarily = True
-
-        # Utiliza recover.readfile para reparar automaticamente avisos de proxy/headers do DWG
-        try:
-            doc, _ = recover.readfile(dxf_path)
-        except Exception:
-            doc = ezdxf.readfile(dxf_path)
-
-        audit_result = executar_auditoria_completa(doc, filename)
-
-        pdf_filename = f"Verificacao_A1_{base_name}.pdf"
-        pdf_gen = A1VerificationPDFGenerator(output_dir=REPORTS_DIR)
-        pdf_gen.generate(doc, audit_result, pdf_filename)
-
-        audit_result["pdf_filename"] = pdf_filename
-        return audit_result
-
+        pdf_path = pdf_generator.generate(doc, audit_result, pdf_filename)
+        audit_result["pdf_url"] = f"/download-pdf/{pdf_filename}"
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro no processamento da prancha: {str(e)}")
-    finally:
-        if os.path.exists(input_path):
-            try: os.remove(input_path)
-            except: pass
-        if converted_temporarily and os.path.exists(dxf_path):
-            try: os.remove(dxf_path)
-            except: pass
+        audit_result["pdf_url"] = None
+        audit_result["pdf_erro"] = f"Falha na geração do PDF A1: {str(e)}"
 
-@app.post("/auditar-a3")
-async def auditar_a3_alias(file: UploadFile = File(...)):
-    return await auditar_e_gerar_a1(file)
+    # Limpeza dos arquivos temporários de entrada
+    try:
+        if os.path.exists(temp_input):
+            os.remove(temp_input)
+        if ext == ".dwg" and os.path.exists(dxf_target):
+            os.remove(dxf_target)
+    except Exception:
+        pass
+
+    return audit_result
+
 
 @app.get("/download-pdf/{filename}")
-def download_pdf(filename: str):
-    file_path = os.path.join(REPORTS_DIR, filename)
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Relatório A1 não encontrado.")
+@app.get("/reports/{filename}")
+async def download_report_pdf(filename: str):
+    """Disponibiliza o download direto da folha de verificação A1."""
+    pdf_path = os.path.join(REPORTS_DIR, filename)
+    if not os.path.exists(pdf_path):
+        raise HTTPException(status_code=404, detail="Arquivo PDF não encontrado ou expirado.")
+
     return FileResponse(
-        file_path,
+        path=pdf_path,
         media_type="application/pdf",
         filename=filename
     )
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
