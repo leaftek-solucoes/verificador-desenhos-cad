@@ -1,0 +1,4 @@
+{
+  "name": "CAD QA/QC Engine",
+  "postCreateCommand": "sudo apt update && sudo apt install -y libredwg-tools && pip install -r backend/requirements.txt"
+}
