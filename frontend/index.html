@@ -1,330 +1,295 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LeafTek CAD QA/QC - Validador de Projetos</title>
-  
-  <!-- Fontes Corporativas e Técnicas -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@600;700;800&display=swap" rel="stylesheet">
-  
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            leaf: {
-              400: '#72cf48',
-              500: '#5cb834',  /* Verde Oficial LeafTek */
-              600: '#4da02a',
-              900: '#1e460e'
-            },
-            cad: {
-              bg: '#0c1017',        /* Fundo Model Space AutoCAD */
-              surface: '#121824',
-              card: '#161f30',
-              border: '#233047',
-              borderLight: '#314363',
-              text: '#94A3B8'
-            }
-          },
-          fontFamily: {
-            sans: ['Inter', 'sans-serif'],
-            mono: ['JetBrains Mono', 'monospace'],
-            display: ['Space Grotesk', 'sans-serif']
-          }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LeafTek CAD QA/QC • Engenharia Estrutural</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-main: #0F172A;
+            --bg-card: #1E293B;
+            --bg-hover: #334155;
+            --border-color: #334155;
+            --text-main: #F8FAFC;
+            --text-muted: #94A3B8;
+            --accent-blue: #38BDF8;
+            --accent-green: #10B981;
+            --accent-red: #EF4444;
+            --accent-yellow: #F59E0B;
         }
-      }
-    }
-  </script>
 
-  <style>
-    /* Padrão F7 do AutoCAD: Malha Menor (20px) + Linhas Mestras (100px) */
-    body {
-      background-color: #0c1017;
-      background-image: 
-        linear-gradient(to right, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
-        linear-gradient(to right, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
-      background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
-      background-position: -1px -1px, -1px -1px, -1px -1px, -1px -1px;
-    }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
 
-    .custom-scroll::-webkit-scrollbar {
-      width: 5px;
-      height: 5px;
-    }
-    .custom-scroll::-webkit-scrollbar-track {
-      background: #121824;
-    }
-    .custom-scroll::-webkit-scrollbar-thumb {
-      background: #233047;
-      border-radius: 4px;
-    }
-    .custom-scroll::-webkit-scrollbar-thumb:hover {
-      background: #5cb834;
-    }
-  </style>
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .logo-area { display: flex; align-items: center; gap: 12px; }
+        .logo-badge {
+            background-color: var(--accent-blue);
+            color: #000;
+            font-weight: 700;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .upload-section {
+            background-color: var(--bg-card);
+            border: 2px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .upload-section:hover { border-color: var(--accent-blue); }
+
+        .btn {
+            background-color: var(--accent-blue);
+            color: #000;
+            font-weight: 600;
+            padding: 10px 20px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-green { background-color: var(--accent-green); color: #FFF; }
+        .btn-red { background-color: var(--accent-red); color: #FFF; }
+
+        .dashboard { display: none; flex-direction: column; gap: 24px; }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+
+        .metric-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .metric-title { font-size: 13px; color: var(--text-muted); font-weight: 500; }
+        .metric-value { font-size: 24px; font-weight: 700; margin-top: 8px; }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status-REPROVADO { background-color: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+        .status-APROVADO { background-color: rgba(16, 185, 129, 0.2); color: var(--accent-green); }
+        .status-RESSALVA { background-color: rgba(245, 158, 11, 0.2); color: var(--accent-yellow); }
+
+        .bom-panel {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .table-container {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; text-align: left; }
+        th, td { padding: 12px 16px; border-bottom: 1px solid var(--border-color); }
+        th { background-color: rgba(0, 0, 0, 0.2); color: var(--text-muted); font-weight: 600; }
+        tr:hover { background-color: var(--bg-hover); }
+
+        .actions-bar { display: flex; gap: 12px; align-items: center; }
+    </style>
 </head>
-<body class="min-h-screen text-slate-200 font-sans flex flex-col justify-between selection:bg-leaf-500 selection:text-black">
+<body>
 
-  <!-- Header Superior -->
-  <header class="bg-cad-surface/95 backdrop-blur-md border-b border-cad-border px-6 py-3 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-50 shadow-2xl">
-    
-    <!-- Logo Oficial LeafTek WebP -->
-    <div class="flex items-center gap-3">
-      <a href="https://leaftek.com.br" target="_blank" class="flex items-center group transition-transform active:scale-95" title="LeafTek - Soluções de Projetos">
-        <img src="logo-leaftek.webp" alt="LeafTek - Soluções de Projetos" class="h-10 w-auto object-contain drop-shadow-[0_0_12px_rgba(92,184,52,0.22)]">
-      </a>
-
-      <!-- Selo do Motor A1 -->
-      <span class="hidden sm:inline-block text-[10px] font-mono px-2 py-0.5 rounded bg-cad-card border border-cad-border text-leaf-500 font-bold ml-2">
-        QA/QC A1 ENGINE
-      </span>
-    </div>
-
-    <!-- Controles de Conexão com API e Créditos -->
-    <div class="flex items-center gap-3">
-      <!-- Input de Endpoint da API -->
-      <div class="hidden md:flex items-center gap-2 bg-cad-card/80 border border-cad-border px-3 py-1.5 rounded-lg text-xs font-mono">
-        <span class="w-2 h-2 rounded-full bg-leaf-500 animate-pulse"></span>
-        <span class="text-cad-text">API:</span>
-        <input type="text" id="apiEndpointInput" value="http://localhost:8000" class="bg-transparent border-none outline-none text-white w-52 truncate" placeholder="URL da API">
-        <button id="btnSaveApi" class="text-leaf-500 hover:text-white transition-colors" title="Salvar URL">
-          <i class="fa-solid fa-floppy-disk"></i>
-        </button>
-      </div>
-
-      <!-- Indicador do Grid F7 -->
-      <div class="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded bg-cad-card/60 border border-cad-border text-[10px] font-mono text-cad-text">
-        <i class="fa-solid fa-table-cells text-leaf-500"></i>
-        <span>F7 GRID: ATIVO</span>
-      </div>
-
-      <!-- Saldo de Créditos -->
-      <div class="flex items-center gap-2 bg-cad-card border border-cad-border px-3 py-1.5 rounded-lg text-xs font-mono">
-        <i class="fa-solid fa-bolt text-leaf-500"></i>
-        <span>Créditos: <strong id="creditCount" class="text-white">12</strong></span>
-      </div>
-    </div>
-  </header>
-
-  <!-- Conteúdo Principal Centralizado -->
-  <main class="max-w-4xl w-full mx-auto p-4 md:p-6 flex-1 flex flex-col justify-center gap-6 my-auto">
-
-    <!-- Card de Upload e Auditoria -->
-    <div class="bg-cad-surface/90 backdrop-blur-md border border-cad-border rounded-2xl p-6 md:p-8 shadow-2xl flex flex-col gap-6 relative overflow-hidden">
-      
-      <!-- Cabeçalho do Card -->
-      <div class="flex items-center justify-between border-b border-cad-border/60 pb-4">
-        <div>
-          <h1 class="text-lg font-bold text-white tracking-wide flex items-center gap-2">
-            <i class="fa-solid fa-compass-drafting text-leaf-500"></i> Auditoria Técnica de Desenhos
-          </h1>
-          <p class="text-xs text-cad-text mt-0.5">Emissão de prancha A1 de verificação com nuvens de revisão e carimbo oficial.</p>
+    <header>
+        <div class="logo-area">
+            <span class="logo-badge">CAD QA/QC</span>
+            <h2>Motor de Auditoria Técnica de Projetos</h2>
         </div>
-        <div class="flex items-center gap-2">
-          <span class="text-[11px] font-mono bg-cad-card px-2.5 py-1 rounded text-leaf-500 border border-leaf-500/30 font-bold">.DWG</span>
-          <span class="text-[11px] font-mono bg-cad-card px-2.5 py-1 rounded text-cad-text border border-cad-border">.DXF</span>
+        <div class="actions-bar">
+            <span id="apiStatus" style="font-size: 13px; color: var(--accent-green);">● Sistema Pronto</span>
         </div>
-      </div>
+    </header>
 
-      <!-- Área de Drag & Drop -->
-      <div id="dropZone" class="border-2 border-dashed border-cad-border hover:border-leaf-500/70 rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all bg-cad-card/40 hover:bg-leaf-500/5 group">
-        <input type="file" id="fileInput" accept=".dxf,.dwg" class="hidden">
-        <div class="w-14 h-14 rounded-xl bg-cad-card border border-cad-border group-hover:border-leaf-500/50 flex items-center justify-center text-cad-text group-hover:text-leaf-500 text-2xl transition-all mb-3 shadow-lg">
-          <i class="fa-solid fa-file-circle-check"></i>
-        </div>
-        <p class="text-sm font-semibold text-white mb-1">Arraste a prancha ou <span class="text-leaf-500 underline underline-offset-4">clique para selecionar</span></p>
-        <p class="text-xs text-cad-text">Conversão automática de DWG nativo via LibreDWG</p>
-      </div>
-
-      <!-- Barra de Arquivo Selecionado -->
-      <div id="fileSelectedBar" class="hidden bg-cad-card border border-leaf-500/30 rounded-xl p-4 flex items-center justify-between">
-        <div class="flex items-center gap-3 overflow-hidden">
-          <div class="w-9 h-9 rounded-lg bg-leaf-500/10 border border-leaf-500/30 flex items-center justify-center text-leaf-500">
-            <i class="fa-solid fa-file-lines text-base"></i>
-          </div>
-          <div class="truncate">
-            <p id="fileNameTxt" class="text-xs font-bold text-white truncate">-</p>
-            <p id="fileSizeTxt" class="text-[10px] font-mono text-cad-text">0 KB</p>
-          </div>
-        </div>
-        <button id="btnRemoveFile" class="text-cad-text hover:text-red-400 p-2 text-sm transition-colors" title="Remover">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-      </div>
-
-      <!-- Botão de Ação -->
-      <button id="btnRunCheck" class="w-full bg-leaf-500 hover:bg-leaf-400 text-black font-bold py-3.5 rounded-xl flex items-center justify-center gap-2.5 shadow-[0_0_20px_rgba(92,184,52,0.22)] transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-        <i class="fa-solid fa-microchip"></i>
-        <span>Auditar Desenho e Emitir Cópia de Verificação A1</span>
-      </button>
+    <div class="upload-section" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <input type="file" id="fileInput" accept=".dwg,.dxf" style="display: none" onchange="handleFileSelect(event)">
+        <h3 id="uploadTitle">Selecione ou arraste o arquivo DWG / DXF aqui</h3>
+        <p style="color: var(--text-muted); margin-top: 8px; font-size: 14px;">Normas ABNT NBR 8800 / AWS D1.1 / Formato ISO A1</p>
     </div>
 
-    <!-- Painel de Resultados (Exibido pós-auditoria) -->
-    <div id="resultsPanel" class="hidden bg-cad-surface/90 backdrop-blur-md border border-cad-border rounded-2xl p-6 md:p-8 shadow-2xl flex flex-col gap-5">
-      <div class="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-cad-border">
-        <div class="flex items-center gap-3">
-          <span id="badgeVerdict" class="text-xs font-mono font-bold px-3 py-1 rounded bg-red-500/20 text-red-400 border border-red-500/30">
-            REPROVADO
-          </span>
-          <span id="scoreConformidade" class="text-xs font-mono text-cad-text">
-            Conformidade: <strong class="text-white">0%</strong>
-          </span>
-        </div>
-        
-        <!-- Botão Primário: Download A1 -->
-        <a id="btnDownloadA1Pdf" href="#" target="_blank" class="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-4 py-2.5 rounded-xl text-xs font-bold font-mono flex items-center gap-2 transition-all">
-          <i class="fa-solid fa-file-pdf text-sm"></i>
-          <span>Baixar Cópia de Verificação A1</span>
-        </a>
-      </div>
-
-      <!-- Relação de Ressalvas -->
-      <div>
-        <h3 class="text-xs uppercase font-mono text-cad-text tracking-wider mb-3 flex items-center gap-2">
-          <i class="fa-solid fa-triangle-exclamation text-amber-400"></i> Observações a serem modificadas pelo projetista:
-        </h3>
-        <div id="issuesContainer" class="space-y-2 max-h-64 overflow-y-auto pr-1 custom-scroll"></div>
-      </div>
-    </div>
-
-  </main>
-
-  <!-- Barra de Status Técnica Inferior -->
-  <footer class="bg-cad-surface/80 border-t border-cad-border px-6 py-2 flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono text-cad-text">
-    <div class="flex items-center gap-4">
-      <span class="text-white font-bold tracking-wide">LEAFTEK • QA/QC PLATFORM</span>
-      <span class="hidden sm:inline">|</span>
-      <span class="hidden sm:inline">DENSIDADE DO AÇO: 7.850 kg/m³</span>
-      <span class="hidden md:inline">|</span>
-      <span class="hidden md:inline">NORMA: NBR 8800 / AWS E7018</span>
-    </div>
-    <div class="flex items-center gap-3">
-      <span>UCS: WORLD</span>
-      <span>•</span>
-      <span>FORMATO: ISO A1 (841 x 594 mm)</span>
-    </div>
-  </footer>
-
-  <!-- Script Lógico Integrado -->
-  <script>
-    let selectedFile = null;
-    let credits = parseInt(localStorage.getItem('leaf_credits') || '12');
-
-    const dropZone = document.getElementById('dropZone');
-    const fileInput = document.getElementById('fileInput');
-    const fileSelectedBar = document.getElementById('fileSelectedBar');
-    const fileNameTxt = document.getElementById('fileNameTxt');
-    const fileSizeTxt = document.getElementById('fileSizeTxt');
-    const btnRemoveFile = document.getElementById('btnRemoveFile');
-    const btnRunCheck = document.getElementById('btnRunCheck');
-    const resultsPanel = document.getElementById('resultsPanel');
-    const badgeVerdict = document.getElementById('badgeVerdict');
-    const scoreConformidade = document.getElementById('scoreConformidade');
-    const issuesContainer = document.getElementById('issuesContainer');
-    const btnDownloadA1Pdf = document.getElementById('btnDownloadA1Pdf');
-    const apiEndpointInput = document.getElementById('apiEndpointInput');
-
-    const savedApi = localStorage.getItem('leaf_api');
-    if (savedApi) apiEndpointInput.value = savedApi;
-
-    document.getElementById('btnSaveApi').addEventListener('click', () => {
-      localStorage.setItem('leaf_api', apiEndpointInput.value.trim());
-      alert('Endpoint da API salvo com sucesso.');
-    });
-
-    dropZone.addEventListener('click', () => fileInput.click());
-    dropZone.addEventListener('dragover', (e) => { 
-      e.preventDefault(); 
-      dropZone.classList.add('border-leaf-500', 'bg-leaf-500/10'); 
-    });
-    dropZone.addEventListener('dragleave', () => {
-      dropZone.classList.remove('border-leaf-500', 'bg-leaf-500/10');
-    });
-    dropZone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dropZone.classList.remove('border-leaf-500', 'bg-leaf-500/10');
-      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
-    });
-    fileInput.addEventListener('change', (e) => {
-      if (e.target.files.length) handleFile(e.target.files[0]);
-    });
-
-    function handleFile(f) {
-      selectedFile = f;
-      fileNameTxt.innerText = f.name;
-      fileSizeTxt.innerText = `${(f.size / 1024).toFixed(1)} KB`;
-      dropZone.classList.add('hidden');
-      fileSelectedBar.classList.remove('hidden');
-      resultsPanel.classList.add('hidden');
-    }
-
-    btnRemoveFile.addEventListener('click', () => {
-      selectedFile = null;
-      fileInput.value = '';
-      fileSelectedBar.classList.add('hidden');
-      dropZone.classList.remove('hidden');
-      resultsPanel.classList.add('hidden');
-    });
-
-    btnRunCheck.addEventListener('click', async () => {
-      if (!selectedFile) return alert('Selecione um arquivo .dwg ou .dxf antes de auditar.');
-      const apiUrl = apiEndpointInput.value.trim().replace(/\/$/, "");
-
-      btnRunCheck.disabled = true;
-      btnRunCheck.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processando Desenho e Gerando Folha A1...';
-
-      const formData = new FormData();
-      formData.append("file", selectedFile);
-
-      try {
-        const res = await fetch(`${apiUrl}/auditar-a1`, { method: "POST", body: formData });
-        if (!res.ok) {
-          const errDetail = await res.json().catch(() => ({}));
-          throw new Error(errDetail.detail || `Erro HTTP ${res.status}`);
-        }
-        const data = await res.json();
-
-        badgeVerdict.innerText = data.status_geral;
-        badgeVerdict.className = data.status_geral === 'APROVADO' 
-          ? 'text-xs font-mono font-bold px-3 py-1 rounded bg-leaf-500/20 text-leaf-500 border border-leaf-500/40'
-          : 'text-xs font-mono font-bold px-3 py-1 rounded bg-red-500/20 text-red-400 border border-red-500/40';
-
-        scoreConformidade.innerHTML = `Conformidade: <strong class="text-white">${data.score_conformidade}%</strong> (${data.resumo_erros.total} notas)`;
-
-        issuesContainer.innerHTML = '';
-        data.inconformidades.forEach(err => {
-          const div = document.createElement('div');
-          const isCrit = err.gravidade === 'CRITICA';
-          div.className = 'p-3 rounded-lg bg-cad-card border border-cad-border flex items-start gap-3 text-xs';
-          div.innerHTML = `
-            <span class="px-2 py-0.5 rounded font-mono font-bold text-[10px] ${isCrit ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}">${err.id}</span>
-            <div class="flex-1">
-              <strong class="text-white block">${err.tipo}</strong>
-              <span class="text-cad-text">${err.descricao}</span>
+    <div class="dashboard" id="dash">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h3 id="docName" style="font-size: 20px;">desenho.dwg</h3>
+                <span id="auditDate" style="color: var(--text-muted); font-size: 13px;">Data da auditoria</span>
             </div>
-          `;
-          issuesContainer.appendChild(div);
-        });
+            <div class="actions-bar">
+                <a id="btnCsv" class="btn" href="#" target="_blank">Baixar Laudo (CSV)</a>
+                <a id="btnPdf" class="btn btn-green" href="#" target="_blank">Visualizar Prancha A1 (PDF)</a>
+            </div>
+        </div>
 
-        btnDownloadA1Pdf.href = `${apiUrl}/download-pdf/${data.pdf_filename}`;
-        resultsPanel.classList.remove('hidden');
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-title">STATUS FINAL</div>
+                <div class="metric-value"><span id="mainStatus" class="status-badge">---</span></div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-title">CONFORMIDADE GERAL</div>
+                <div class="metric-value" id="mainScore">--%</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-title">APONTAMENTOS</div>
+                <div class="metric-value" id="mainIssuesCount">0</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-title">DFM / FURAÇÃO</div>
+                <div class="metric-value"><span id="statusDfm" class="status-badge">---</span></div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-title">SOLDA ESTRUTURAL</div>
+                <div class="metric-value"><span id="statusWeld" class="status-badge">---</span></div>
+            </div>
+        </div>
 
-      } catch (err) {
-        alert(`Falha no processamento: ${err.message}`);
-      } finally {
-        btnRunCheck.disabled = false;
-        btnRunCheck.innerHTML = '<i class="fa-solid fa-microchip"></i> <span>Auditar Desenho e Emitir Cópia de Verificação A1</span>';
-      }
-    });
-  </script>
+        <div class="bom-panel" id="bomPanel">
+            <div>
+                <strong>RECONCILIAÇÃO DA LISTA DE MATERIAIS (BOM):</strong>
+                <div style="color: var(--text-muted); font-size: 13px; margin-top: 4px;">Densidade adotada: 7.850 kg/m³ (Aço estrutural)</div>
+            </div>
+            <div style="display: flex; gap: 24px;">
+                <div>Declarado: <span id="pesoDecl" style="color: var(--accent-blue);">0.00 kg</span></div>
+                <div>Calculado: <span id="pesoCalc" style="color: var(--accent-green);">0.00 kg</span></div>
+                <div>Divergência: <span id="pesoDiff" style="color: var(--accent-red);">0.00 kg</span></div>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Gravidade</th>
+                        <th>Tipo de Verificação</th>
+                        <th>Descrição Técnica</th>
+                        <th>Localização (X, Y)</th>
+                    </tr>
+                </thead>
+                <tbody id="issuesTableBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        async function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            document.getElementById('uploadTitle').innerText = "Processando e auditando arquivo: " + file.name + "...";
+            const formData = new FormData();
+            formData.append("file", file);
+
+            try {
+                // Requisição relativa à própria origem que serve o HTML
+                const response = await fetch('/audit', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || "Erro durante o processamento do CAD.");
+                }
+
+                const data = await response.json();
+                renderResults(data);
+            } catch (err) {
+                alert("Falha na auditoria: " + err.message);
+                document.getElementById('uploadTitle').innerText = "Selecione ou arraste o arquivo DWG / DXF aqui";
+            }
+        }
+
+        function renderResults(data) {
+            document.getElementById('uploadTitle').innerText = "Arquivo processado: " + data.arquivo;
+            document.getElementById('dash').style.display = "flex";
+
+            document.getElementById('docName').innerText = data.arquivo;
+            document.getElementById('auditDate').innerText = "Auditado em: " + data.data_verificacao;
+
+            const st = document.getElementById('mainStatus');
+            st.innerText = data.status_geral;
+            st.className = "status-badge status-" + (data.status_geral.includes("REPROVADO") ? "REPROVADO" : (data.status_geral.includes("RESSALVA") ? "RESSALVA" : "APROVADO"));
+
+            document.getElementById('mainScore').innerText = data.score_conformidade + "%";
+            document.getElementById('mainIssuesCount').innerText = data.inconformidades.length;
+
+            const dfmBadge = document.getElementById('statusDfm');
+            dfmBadge.innerText = data.resumo_modulos.dfm_furacao || "N/A";
+            dfmBadge.className = "status-badge status-" + (data.resumo_modulos.dfm_furacao || "APROVADO");
+
+            const weldBadge = document.getElementById('statusWeld');
+            weldBadge.innerText = data.resumo_modulos.soldagem || "N/A";
+            weldBadge.className = "status-badge status-" + (data.resumo_modulos.soldagem || "APROVADO");
+
+            // Dados da Lista de Material
+            const pDecl = data.detalhes_bom.peso_declarado_kg || 0;
+            const pCalc = data.detalhes_bom.peso_calculado_kg || 0;
+            const diff = Math.abs(pDecl - pCalc);
+
+            document.getElementById('pesoDecl').innerText = pDecl.toFixed(2) + " kg";
+            document.getElementById('pesoCalc').innerText = pCalc.toFixed(2) + " kg";
+            document.getElementById('pesoDiff').innerText = diff.toFixed(2) + " kg";
+
+            // Botões de download
+            document.getElementById('btnPdf').href = data.pdf_url;
+            document.getElementById('btnCsv').href = data.csv_url;
+
+            // Preenche tabela
+            const tbody = document.getElementById('issuesTableBody');
+            tbody.innerHTML = "";
+
+            data.inconformidades.forEach(err => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">${err.id}</td>
+                    <td><span class="status-badge status-${err.gravidade === 'CRITICA' ? 'REPROVADO' : (err.gravidade === 'ALTA' ? 'RESSALVA' : 'APROVADO')}">${err.gravidade}</span></td>
+                    <td>${err.tipo}</td>
+                    <td>${err.descricao}</td>
+                    <td style="font-family: 'JetBrains Mono', monospace;">X: ${err.posicao?.x ?? 0}, Y: ${err.posicao?.y ?? 0}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+    </script>
 </body>
 </html>
