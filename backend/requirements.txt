@@ -1,6 +1,5 @@
-fastapi>=0.110.0
-uvicorn>=0.28.0
-ezdxf>=1.2.0
-python-multipart>=0.0.9
-matplotlib>=3.9.0
-numpy>=1.26.0
+fastapi>=0.100.0
+uvicorn[standard]>=0.22.0
+ezdxf>=1.1.0
+matplotlib>=3.7.0
+python-multipart>=0.0.6
