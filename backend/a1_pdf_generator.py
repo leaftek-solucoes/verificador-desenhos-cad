@@ -7,7 +7,7 @@ from typing import Dict, Any, List
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.patches import Circle, Rectangle
+from matplotlib.patches import Circle
 
 import ezdxf
 from ezdxf import bbox
@@ -15,12 +15,15 @@ from ezdxf.addons.drawing import RenderContext, Frontend
 from ezdxf.addons.drawing.matplotlib import MatplotlibBackend
 from ezdxf.addons.drawing.properties import LayoutProperties
 
-# Força conversão de linhas brancas em linhas pretas sólidas
+# Força plotagem monocromática (Preto e Branco) da geometria CAD
 try:
-    from ezdxf.addons.drawing.config import Configuration, ColorPolicy
+    from ezdxf.addons.drawing.config import Configuration, ColorPolicy, BackgroundPolicy
+    policy_pb = getattr(ColorPolicy, "BLACK", getattr(ColorPolicy, "MONOCHROME", ColorPolicy.COLOR_ON_WHITE))
     DRAWING_CONFIG = Configuration(
-        color_policy=ColorPolicy.COLOR_ON_WHITE,
-        lineweight_scaling=2.0
+        color_policy=policy_pb,
+        background_policy=BackgroundPolicy.WHITE,
+        lineweight_scaling=1.8,
+        min_lineweight=0.35
     )
 except Exception:
     DRAWING_CONFIG = None
@@ -29,7 +32,7 @@ class A1VerificationPDFGenerator:
     def __init__(self, output_dir: str = "temp_reports"):
         self.output_dir = output_dir
         os.makedirs(self.output_dir, exist_ok=True)
-        # Dimensões exatas de ISO A1 Paisagem (841 x 594 mm em polegadas)
+        # Dimensões exatas ISO A1 Paisagem (841 x 594 mm em polegadas)
         self.width_in = 841.0 / 25.4   # ~33.11 pol
         self.height_in = 594.0 / 25.4  # ~23.38 pol
         
@@ -37,7 +40,7 @@ class A1VerificationPDFGenerator:
         self.text_h_3mm = 8.5
 
     def _select_primary_layout(self, doc: ezdxf.document.Drawing):
-        """Seleciona o espaço que contém o desenho principal."""
+        """Seleciona o espaço onde está a prancha técnica principal."""
         for lay in doc.layouts:
             if lay.name.lower() != "model":
                 ents = [e for e in lay if e.dxftype() != "VIEWPORT"]
@@ -45,30 +48,28 @@ class A1VerificationPDFGenerator:
                     return lay
         return doc.modelspace()
 
-    def _draw_cloud(self, ax, cx: float, cy: float, radius: float, color: str = "#DC2626"):
-        """Desenha nuvem de revisão vermelha clássica de AutoCAD sobre a não conformidade."""
-        num_arcs = 10
-        arc_angle = (2 * math.pi) / num_arcs
-        arc_radius = radius * 0.35
+    def _draw_error_marker(self, ax, cx: float, cy: float, radius: float, color: str = "#DC2626"):
+        """Desenha círculo técnico de inspeção limpo com mira (substitui os girassóis)."""
+        # 1. Círculo principal translúcido de destaque
+        fill_circle = Circle(
+            (cx, cy),
+            radius,
+            facecolor=color,
+            alpha=0.08,
+            edgecolor=color,
+            linewidth=1.4,
+            zorder=25
+        )
+        ax.add_patch(fill_circle)
 
-        for i in range(num_arcs):
-            angle = i * arc_angle
-            ax_pos = cx + math.cos(angle) * radius
-            ay_pos = cy + math.sin(angle) * radius
-            patch = Circle(
-                (ax_pos, ay_pos),
-                arc_radius,
-                edgecolor=color,
-                facecolor="none",
-                linewidth=1.2,
-                zorder=25
-            )
-            ax.add_patch(patch)
-        ax.plot(cx, cy, marker="x", markersize=6.0, color=color, zorder=26)
+        # 2. Mira central de precisão (+)
+        cross_size = radius * 0.45
+        ax.plot([cx - cross_size, cx + cross_size], [cy, cy], color=color, linewidth=1.2, zorder=26)
+        ax.plot([cx, cx], [cy - cross_size, cy + cross_size], color=color, linewidth=1.2, zorder=26)
 
     def _draw_verified_badge(self, ax, x: float, y: float):
-        """Marcador verde técnico '✓' indicando elemento auditado e em conformidade."""
-        ax.plot(x, y, marker="o", markersize=8.5, color="#059669", zorder=20)
+        """Marcador verde técnico '✓' para itens inspecionados e aprovados."""
+        ax.plot(x, y, marker="o", markersize=7.0, color="#059669", zorder=20)
         ax.text(
             x, y, "✓",
             fontsize=6.5,
@@ -80,7 +81,7 @@ class A1VerificationPDFGenerator:
         )
 
     def _add_qa_stamp(self, fig, status: str, score: float, total_issues: int, verified_count: int, filename: str):
-        """Carimbo oficial de verificação QA/QC posicionado no canto inferior direito da prancha A1."""
+        """Carimbo oficial de verificação QA/QC no canto inferior direito da prancha."""
         is_reprovado = "REPROVADO" in status
         stamp_color = "#DC2626" if is_reprovado else ("#D97706" if "RESSALVA" in status else "#059669")
         today = datetime.now().strftime("%d/%m/%Y %H:%M")
@@ -91,7 +92,7 @@ class A1VerificationPDFGenerator:
             f"EMISSÃO : {today} | FORMATO: ISO A1 (841 x 594 mm)\n"
             f"STATUS  : {status} | ÍNDICE DE CONFORMIDADE: {score}%\n"
             f"ITENS   : ✓ {verified_count} CONFORMES | ✗ {total_issues} NOTAS A REVISAR\n"
-            f"CRITÉRIO: ABNT NBR 8800 / AWS D1.1 / DENSIDADE DO AÇO: 7.850 kg/m³"
+            f"CRITÉRIO: ABNT NBR 8800 / AWS D1.1 / PESO TEÓRICO: 7.850 kg/m³"
         )
 
         fig.text(
@@ -117,17 +118,19 @@ class A1VerificationPDFGenerator:
         pdf_path = os.path.join(self.output_dir, output_filename)
 
         fig = plt.figure(figsize=(self.width_in, self.height_in), dpi=300)
-        
-        # Margem técnica para caber a prancha A1 sem cortes
         ax = fig.add_axes([0.040, 0.040, 0.920, 0.920])
         ax.axis("off")
 
         target_layout = self._select_primary_layout(doc)
         ctx = RenderContext(doc)
         layout_props = LayoutProperties.from_layout(target_layout)
-        layout_props.set_colors(bg="#FFFFFF", fg="#000000")
+        try:
+            layout_props.background_color = "#FFFFFF"
+            layout_props.default_color = "#000000"
+        except Exception:
+            pass
 
-        # 1. CÁLCULO PRECISO DO ENQUADRAMENTO DA PEÇA (BOUNDING BOX REAL)
+        # 1. ENQUADRAMENTO EXATO DA PRANCHA / PEÇA
         drawing_box = bbox.extents(target_layout)
         if drawing_box.has_data:
             cad_min_x, cad_min_y = drawing_box.extmin[0], drawing_box.extmin[1]
@@ -135,10 +138,9 @@ class A1VerificationPDFGenerator:
         else:
             cad_min_x, cad_min_y, cad_max_x, cad_max_y = 0.0, 0.0, 841.0, 594.0
 
-        span_x = abs(cad_max_x - cad_min_x) or 841.0
-        span_y = abs(cad_max_y - cad_min_y) or 594.0
+        span_x = max(abs(cad_max_x - cad_min_x), 10.0)
+        span_y = max(abs(cad_max_y - cad_min_y), 10.0)
 
-        # Adiciona respiro de 6% em volta da geometria para caberem nuvens e setas
         pad_x = span_x * 0.06
         pad_y = span_y * 0.06
         view_min_x = cad_min_x - pad_x
@@ -150,12 +152,12 @@ class A1VerificationPDFGenerator:
         ax.set_ylim(view_min_y, view_max_y)
         ax.set_aspect("equal", adjustable="datalim")
 
-        # 2. RENDERIZAÇÃO VETORIAL COM LINHAS PRETAS E NÍTIDAS
+        # 2. RENDERIZAÇÃO EM PRETO E BRANCO TÉCNICO (CTB MONOCROMÁTICO)
         backend = MatplotlibBackend(ax)
         frontend = Frontend(ctx, backend, config=DRAWING_CONFIG) if DRAWING_CONFIG else Frontend(ctx, backend)
         frontend.draw_layout(target_layout, layout_properties=layout_props, finalize=False)
 
-        # 3. MARCAÇÕES EM VERDE (ELEMENTOS APROVADOS)
+        # 3. MARCAÇÕES VERDES (ELEMENTOS APROVADOS)
         inconformidades = audit_result.get("inconformidades", [])
         error_coords = set()
         for err in inconformidades:
@@ -179,10 +181,10 @@ class A1VerificationPDFGenerator:
                     self._draw_verified_badge(ax, pt[0], pt[1])
                     verified_items_count += 1
 
-        # 4. NUVENS VERMELHAS E CHAMADAS DE TEXTO
-        cloud_radius = max(10.0, span_x * 0.018)
-        offset_dist_x = max(28.0, span_x * 0.045)
-        offset_dist_y = max(28.0, span_y * 0.045)
+        # 4. CÍRCULOS TÉCNICOS VERMELHOS E SETAS DE CHAMADA
+        marker_radius = max(8.0, span_x * 0.014)
+        offset_dist_x = max(24.0, span_x * 0.038)
+        offset_dist_y = max(24.0, span_y * 0.038)
         mid_x = (view_min_x + view_max_x) / 2.0
         mid_y = (view_min_y + view_max_y) / 2.0
 
@@ -201,20 +203,18 @@ class A1VerificationPDFGenerator:
                 is_crit = err.get("gravidade") == "CRITICA"
                 color = "#DC2626" if is_crit else "#D97706"
 
-                # Nuvem vermelha sobre o item reprovado
-                self._draw_cloud(ax, px, py, radius=cloud_radius, color=color)
+                # Aplica o círculo técnico com mira no furo/peça
+                self._draw_error_marker(ax, px, py, radius=marker_radius, color=color)
 
-                # Chamadas diretas (limite de 10 para não congestionar a vista)
+                # Chamadas com seta para as notas
                 if callouts_count < 10:
                     callouts_count += 1
                     dx = -offset_dist_x if px > mid_x else offset_dist_x
                     dy = -offset_dist_y if py > mid_y else offset_dist_y
 
-                    # Trava estrita anti-borda
                     tx = max(safe_min_x, min(px + dx, safe_max_x))
                     ty = max(safe_min_y, min(py + dy, safe_max_y))
 
-                    # Quebra automática para não alargar a caixa
                     desc_quebrada = "\n".join(textwrap.wrap(err.get("descricao", ""), width=32))
                     box_text = f"[{err.get('id')}] {err.get('tipo')}\n{desc_quebrada}"
 
@@ -231,7 +231,7 @@ class A1VerificationPDFGenerator:
                             shrinkA=3,
                             shrinkB=3
                         ),
-                        fontsize=self.text_h_3mm,
+                        fontsize=self.text_h_3mm,  # Altura real de 3 mm
                         fontfamily="sans-serif",
                         fontweight="bold",
                         color="#7F1D1D" if is_crit else "#78350F",
@@ -245,7 +245,7 @@ class A1VerificationPDFGenerator:
                         zorder=30
                     )
 
-        # 5. QUADRO DE RESSALVAS NO TOPO ESQUERDO
+        # 5. QUADRO TÉCNICO DE RESSALVAS (CANTO SUPERIOR ESQUERDO)
         quadro_linhas = ["QUADRO DE RESSALVAS TÉCNICAS (MODIFICAÇÕES):"]
         for i, err in enumerate(inconformidades[:7]):
             desc_curta = err.get("descricao", "")
@@ -254,7 +254,7 @@ class A1VerificationPDFGenerator:
             quadro_linhas.append(f"{i+1}. [{err.get('id')}] {desc_curta}")
 
         if len(inconformidades) > 7:
-            quadro_linhas.append(f"• ... e mais {len(inconformidades) - 7} apontamentos descritos no relatório.")
+            quadro_linhas.append(f"• ... e mais {len(inconformidades) - 7} apontamentos descritos no laudo.")
 
         texto_quadro = "\n".join(quadro_linhas)
         fig.text(
