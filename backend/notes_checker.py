@@ -40,6 +40,13 @@ class StandardNotesChecker:
             "regex": r"\b(TOLER[AÂ]NCIA|ISO\s*2768|NBR\s*8800)\b",
             "gravidade": "BAIXA",
             "descricao": "Indicação de tolerâncias gerais lineares e angulares não identificada."
+        },
+        {
+            "id": "NOTE-PINT",
+            "tipo": "Proteção Superficial",
+            "regex": r"\b(PINTURA|GALVANIZ|TRATAMENTO\s*SUPERFICIAL|JATEAMENTO|PRIMER)",
+            "gravidade": "MEDIA",
+            "descricao": "Nota de pintura ou proteção superficial (pintura, galvanização) ausente."
         }
     ]
 

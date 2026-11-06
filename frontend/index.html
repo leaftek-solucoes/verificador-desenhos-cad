@@ -211,9 +211,32 @@
     </div>
 
     <script>
-        async function handleFileSelect(event) {
+        function handleFileSelect(event) {
             const file = event.target.files[0];
-            if (!file) return;
+            event.target.value = "";
+            if (file) auditFile(file);
+        }
+
+        const dropZone = document.getElementById('dropZone');
+        ['dragenter', 'dragover'].forEach(ev => dropZone.addEventListener(ev, e => {
+            e.preventDefault();
+            dropZone.style.borderColor = 'var(--accent-blue)';
+        }));
+        ['dragleave', 'drop'].forEach(ev => dropZone.addEventListener(ev, e => {
+            e.preventDefault();
+            dropZone.style.borderColor = '';
+        }));
+        dropZone.addEventListener('drop', e => {
+            const file = e.dataTransfer.files[0];
+            if (file) auditFile(file);
+        });
+
+        function statusClass(s) {
+            s = s || "";
+            return "status-" + (s.includes("REPROVADO") ? "REPROVADO" : (s.includes("RESSALVA") ? "RESSALVA" : "APROVADO"));
+        }
+
+        async function auditFile(file) {
 
             document.getElementById('uploadTitle').innerText = "Processando e auditando arquivo: " + file.name + "...";
             const formData = new FormData();
@@ -227,8 +250,9 @@
                 });
 
                 if (!response.ok) {
-                    const err = await response.json();
-                    throw new Error(err.detail || "Erro durante o processamento do CAD.");
+                    let detail = "Erro " + response.status + " durante o processamento do CAD.";
+                    try { detail = (await response.json()).detail || detail; } catch (_) {}
+                    throw new Error(detail);
                 }
 
                 const data = await response.json();
@@ -248,18 +272,18 @@
 
             const st = document.getElementById('mainStatus');
             st.innerText = data.status_geral;
-            st.className = "status-badge status-" + (data.status_geral.includes("REPROVADO") ? "REPROVADO" : (data.status_geral.includes("RESSALVA") ? "RESSALVA" : "APROVADO"));
+            st.className = "status-badge " + statusClass(data.status_geral);
 
             document.getElementById('mainScore').innerText = data.score_conformidade + "%";
             document.getElementById('mainIssuesCount').innerText = data.inconformidades.length;
 
             const dfmBadge = document.getElementById('statusDfm');
             dfmBadge.innerText = data.resumo_modulos.dfm_furacao || "N/A";
-            dfmBadge.className = "status-badge status-" + (data.resumo_modulos.dfm_furacao || "APROVADO");
+            dfmBadge.className = "status-badge " + statusClass(data.resumo_modulos.dfm_furacao);
 
             const weldBadge = document.getElementById('statusWeld');
             weldBadge.innerText = data.resumo_modulos.soldagem || "N/A";
-            weldBadge.className = "status-badge status-" + (data.resumo_modulos.soldagem || "APROVADO");
+            weldBadge.className = "status-badge " + statusClass(data.resumo_modulos.soldagem);
 
             // Dados da Lista de Material
             const pDecl = data.detalhes_bom.peso_declarado_kg || 0;
@@ -279,14 +303,24 @@
             tbody.innerHTML = "";
 
             data.inconformidades.forEach(err => {
+                // textContent: descrições trazem textos do próprio DXF e não podem virar HTML
                 const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">${err.id}</td>
-                    <td><span class="status-badge status-${err.gravidade === 'CRITICA' ? 'REPROVADO' : (err.gravidade === 'ALTA' ? 'RESSALVA' : 'APROVADO')}">${err.gravidade}</span></td>
-                    <td>${err.tipo}</td>
-                    <td>${err.descricao}</td>
-                    <td style="font-family: 'JetBrains Mono', monospace;">X: ${err.posicao?.x ?? 0}, Y: ${err.posicao?.y ?? 0}</td>
-                `;
+                const mono = "font-family: 'JetBrains Mono', monospace;";
+                const cell = (text, style) => {
+                    const td = document.createElement('td');
+                    td.textContent = text;
+                    if (style) td.style.cssText = style;
+                    tr.appendChild(td);
+                    return td;
+                };
+                cell(err.id, mono + " font-weight: 600;");
+                const badge = document.createElement('span');
+                badge.className = "status-badge status-" + (err.gravidade === 'CRITICA' ? 'REPROVADO' : (err.gravidade === 'ALTA' ? 'RESSALVA' : 'APROVADO'));
+                badge.textContent = err.gravidade;
+                cell("").appendChild(badge);
+                cell(err.tipo);
+                cell(err.descricao);
+                cell(`X: ${err.posicao?.x ?? 0}, Y: ${err.posicao?.y ?? 0}`, mono);
                 tbody.appendChild(tr);
             });
         }

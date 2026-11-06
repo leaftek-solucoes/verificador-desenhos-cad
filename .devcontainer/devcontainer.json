@@ -1,4 +1,4 @@
 {
   "name": "CAD QA/QC Engine",
-  "postCreateCommand": "sudo apt update && sudo apt install -y libredwg-tools && pip install -r backend/requirements.txt"
+  "postCreateCommand": "pip install -r backend/requirements.txt && (sudo apt-get update && sudo apt-get install -y libredwg-tools || echo 'AVISO: libredwg-tools indisponivel nesta imagem; somente DXF sera aceito.')"
 }
