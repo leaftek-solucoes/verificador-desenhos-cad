@@ -1,6 +1,7 @@
 import os
+import re
+import time
 import uuid
-import shutil
 import subprocess
 from datetime import datetime
 from typing import Dict, Any, List
@@ -14,6 +15,8 @@ from ezdxf import recover
 
 # Módulos do Sistema Especialista
 from layer_checker import LayerChecker
+from dimension_checker import DimensionChecker
+from text_checker import TextChecker
 from bom_checker import BOMChecker
 from dfm_checker import DFMChecker
 from weld_checker import WeldChecker
@@ -40,38 +43,55 @@ REPORTS_DIR = "temp_reports"
 os.makedirs(TEMP_DIR, exist_ok=True)
 os.makedirs(REPORTS_DIR, exist_ok=True)
 
-# Auditor de Cotas Sobrescritas / Override
-class DimensionChecker:
-    def check(self, doc: ezdxf.document.Drawing) -> Dict[str, Any]:
-        issues = []
-        target_layout = doc.modelspace()
-        for lay in doc.layouts:
-            if lay.name.lower() != "model":
-                if sum(1 for e in lay if e.dxftype() != "VIEWPORT") > 10:
-                    target_layout = lay
-                    break
+MAX_UPLOAD_MB = float(os.getenv("CAD_MAX_UPLOAD_MB", "50"))
+REPORT_TTL_HOURS = float(os.getenv("CAD_REPORT_TTL_HOURS", "24"))
 
-        count = 0
-        for dim in target_layout.query("DIMENSION"):
-            txt = dim.dxf.get("text", "").strip()
-            if txt and txt != "<>" and "<>" not in txt:
-                count += 1
-                pt = getattr(dim.dxf, "text_midpoint", None) or getattr(dim.dxf, "defpoint", (0, 0))
-                issues.append({
-                    "id": f"DIM-OVR-{count}",
-                    "tipo": "Cota Sobrescrita (Override)",
-                    "gravidade": "CRITICA",
-                    "descricao": f"Cota com medição forçada para '{txt}'. Deve usar a medição paramétrica (<>).",
-                    "posicao": {"x": round(float(pt[0]), 2), "y": round(float(pt[1]), 2)}
-                })
+# Penalidade por ocorrência e teto por tipo de apontamento: 40 linhas com cor forçada
+# continuam aparecendo no laudo, mas não zeram sozinhas a nota do desenho.
+PENALIDADES = {"CRITICA": 20.0, "ALTA": 8.0, "MEDIA": 4.0, "BAIXA": 1.5}
+MAX_OCORRENCIAS_POR_TIPO = 3
 
-        return {"modulo": "dimension_checker", "status": "REPROVADO" if issues else "APROVADO", "inconformidades": issues}
+
+def calcular_score(inconformidades: List[Dict[str, Any]]) -> float:
+    por_tipo: Dict[tuple, int] = {}
+    deducoes = 0.0
+    for e in inconformidades:
+        grav = e.get("gravidade", "MEDIA")
+        chave = (e.get("tipo", ""), grav)
+        por_tipo[chave] = por_tipo.get(chave, 0) + 1
+        if por_tipo[chave] <= MAX_OCORRENCIAS_POR_TIPO:
+            deducoes += PENALIDADES.get(grav, 4.0)
+    return max(0.0, round(100.0 - deducoes, 1))
+
+
+def safe_filename(name: str) -> str:
+    """Remove diretórios e caracteres problemáticos do nome enviado pelo navegador."""
+    base = os.path.basename((name or "").replace("\\", "/"))
+    base = re.sub(r"[^\w.\- ]", "_", base).strip(" .")
+    return base[:120] or "desenho"
+
+
+def cleanup_old_reports():
+    limite = time.time() - REPORT_TTL_HOURS * 3600
+    for d in (REPORTS_DIR, TEMP_DIR):
+        for f in os.listdir(d):
+            fp = os.path.join(d, f)
+            try:
+                if os.path.isfile(fp) and os.path.getmtime(fp) < limite:
+                    os.remove(fp)
+            except OSError:
+                pass
 
 
 def convert_dwg_to_dxf(input_path: str, output_path: str):
     """Executa a conversão via utilitário nativo do LibreDWG."""
     cmd = ["dwg2dxf", "-y", "-o", output_path, input_path]
-    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=45)
+    try:
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=45)
+    except FileNotFoundError:
+        raise RuntimeError("Conversor DWG (LibreDWG/dwg2dxf) não instalado no servidor. Envie o arquivo em DXF.")
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("Tempo esgotado na conversão do DWG. Tente exportar o arquivo como DXF.")
     if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
         raise RuntimeError(f"Falha na conversão do arquivo DWG. Detalhe: {res.stderr or res.stdout}")
 
@@ -90,33 +110,56 @@ async def serve_index():
 @app.post("/audit")
 @app.post("/upload")
 @app.post("/verify")
-async def audit_cad_file(file: UploadFile = File(...)):
-    filename = file.filename
+def audit_cad_file(file: UploadFile = File(...)):
+    # Rota síncrona: o FastAPI executa em thread separada e o processamento pesado
+    # (leitura do CAD e PDF A1) não trava o atendimento das outras requisições.
+    filename = safe_filename(file.filename)
     ext = os.path.splitext(filename)[1].lower()
     if ext not in [".dwg", ".dxf"]:
         raise HTTPException(status_code=400, detail="Formato não suportado. Envie arquivos DWG ou DXF.")
 
-    file_id = str(uuid.uuid4())[:8]
-    temp_in = os.path.join(TEMP_DIR, f"{file_id}_{filename}")
+    cleanup_old_reports()
+
+    file_id = uuid.uuid4().hex[:12]
+    temp_in = os.path.join(TEMP_DIR, f"{file_id}{ext}")
     dxf_target = os.path.join(TEMP_DIR, f"{file_id}_converted.dxf") if ext == ".dwg" else temp_in
 
-    with open(temp_in, "wb") as buf:
-        shutil.copyfileobj(file.file, buf)
-
-    if ext == ".dwg":
-        try:
-            convert_dwg_to_dxf(temp_in, dxf_target)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
-
     try:
-        doc, _ = recover.readfile(dxf_target)
-    except Exception:
-        try:
-            doc = ezdxf.readfile(dxf_target)
-        except Exception as e:
-            raise HTTPException(status_code=422, detail=f"Erro ao processar dados vetoriais CAD: {str(e)}")
+        limite = int(MAX_UPLOAD_MB * 1024 * 1024)
+        recebido = 0
+        with open(temp_in, "wb") as buf:
+            while chunk := file.file.read(1024 * 1024):
+                recebido += len(chunk)
+                if recebido > limite:
+                    raise HTTPException(status_code=413, detail=f"Arquivo acima do limite de {MAX_UPLOAD_MB:g} MB.")
+                buf.write(chunk)
 
+        if ext == ".dwg":
+            try:
+                convert_dwg_to_dxf(temp_in, dxf_target)
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        try:
+            doc, _ = recover.readfile(dxf_target)
+        except Exception:
+            try:
+                doc = ezdxf.readfile(dxf_target)
+            except Exception as e:
+                raise HTTPException(status_code=422, detail=f"Erro ao processar dados vetoriais CAD: {str(e)}")
+
+        return _run_audit(doc, filename, file_id)
+    finally:
+        # Limpeza de temporários também em caso de erro
+        for f in {temp_in, dxf_target}:
+            if os.path.exists(f):
+                try:
+                    os.remove(f)
+                except Exception:
+                    pass
+
+
+def _run_audit(doc, filename: str, file_id: str) -> Dict[str, Any]:
     # Execução de todos os módulos especializados de inspeção
     inconformidades: List[Dict[str, Any]] = []
 
@@ -126,18 +169,17 @@ async def audit_cad_file(file: UploadFile = File(...)):
     dfm_res = DFMChecker().check(doc)
     weld_res = WeldChecker().check(doc)
     notes_res = StandardNotesChecker().check(doc)
+    text_res = TextChecker().check(doc)
 
-    inconformidades.extend(layer_res.get("inconformidades", []))
-    inconformidades.extend(dim_res.get("inconformidades", []))
-    inconformidades.extend(bom_res.get("inconformidades", []))
-    inconformidades.extend(dfm_res.get("inconformidades", []))
-    inconformidades.extend(weld_res.get("inconformidades", []))
-    inconformidades.extend(notes_res.get("inconformidades", []))
+    for res in (layer_res, dim_res, bom_res, dfm_res, weld_res, notes_res, text_res):
+        inconformidades.extend(res.get("inconformidades", []))
+
+    # Críticas primeiro: o quadro do PDF mostra só os 7 primeiros itens
+    ordem = list(PENALIDADES)
+    inconformidades.sort(key=lambda e: ordem.index(e["gravidade"]) if e.get("gravidade") in ordem else len(ordem))
 
     # Cálculo ponderado da conformidade
-    penalidades = {"CRITICA": 20.0, "ALTA": 8.0, "MEDIA": 4.0, "BAIXA": 1.5}
-    deducoes = sum(penalidades.get(e.get("gravidade", "MEDIA"), 4.0) for e in inconformidades)
-    score_final = max(0.0, round(100.0 - deducoes, 1))
+    score_final = calcular_score(inconformidades)
 
     status_geral = "REPROVADO" if any(e.get("gravidade") == "CRITICA" for e in inconformidades) or score_final < 80.0 else ("APROVADO COM RESSALVA" if inconformidades else "APROVADO")
 
@@ -147,8 +189,8 @@ async def audit_cad_file(file: UploadFile = File(...)):
         "status_geral": status_geral,
         "score_conformidade": score_final,
         "detalhes_bom": {
-            "peso_declarado_kg": bom_res.get("peso_total_declarado_kg", bom_res.get("peso_declarado_kg", 0.0)),
-            "peso_calculado_kg": bom_res.get("peso_total_calculado_kg", bom_res.get("peso_calculado_kg", 0.0)),
+            "peso_declarado_kg": bom_res.get("peso_total_declarado_kg", 0.0),
+            "peso_calculado_kg": bom_res.get("peso_total_calculado_kg", 0.0),
             "itens_auditados": bom_res.get("itens_auditados", 0)
         },
         "resumo_modulos": {
@@ -157,37 +199,33 @@ async def audit_cad_file(file: UploadFile = File(...)):
             "lista_material": bom_res.get("status"),
             "dfm_furacao": dfm_res.get("status"),
             "soldagem": weld_res.get("status"),
-            "notas_tecnicas": notes_res.get("status")
+            "notas_tecnicas": notes_res.get("status"),
+            "ortografia": text_res.get("status")
         },
         "inconformidades": inconformidades
     }
 
-    # Emissão dos laudos técnicos
-    pdf_filename = f"Verificacao_A1_{os.path.splitext(filename)[0]}.pdf"
-    csv_filename = f"Laudo_QAQC_{os.path.splitext(filename)[0]}.csv"
+    # Emissão dos laudos técnicos (id único no nome: dois clientes com o mesmo
+    # nome de arquivo não sobrescrevem nem baixam o laudo um do outro)
+    base = os.path.splitext(filename)[0]
+    pdf_filename = f"Verificacao_A1_{base}_{file_id}.pdf"
+    csv_filename = f"Laudo_QAQC_{base}_{file_id}.csv"
 
     A1VerificationPDFGenerator(output_dir=REPORTS_DIR).generate(doc, audit_result, pdf_filename)
     ReportExporter(output_dir=REPORTS_DIR).export_csv(audit_result, csv_filename)
 
     audit_result["pdf_url"] = f"/download/{pdf_filename}"
     audit_result["csv_url"] = f"/download/{csv_filename}"
-
-    # Limpeza de temporários
-    for f in [temp_in, dxf_target]:
-        if os.path.exists(f):
-            try:
-                os.remove(f)
-            except Exception:
-                pass
-
     return audit_result
 
 
 @app.get("/download/{filename}")
 @app.get("/download-pdf/{filename}")
 async def download_file(filename: str):
+    if filename != os.path.basename(filename) or filename.startswith("."):
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado.")
     fpath = os.path.join(REPORTS_DIR, filename)
-    if not os.path.exists(fpath):
+    if not os.path.isfile(fpath):
         raise HTTPException(status_code=404, detail="Arquivo não encontrado.")
     return FileResponse(
         path=fpath,

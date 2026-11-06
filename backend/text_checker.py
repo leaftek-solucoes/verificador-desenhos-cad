@@ -19,25 +19,7 @@ class TextChecker:
             r"\bparafuzo\b": "parafuso",
             r"\bcomprimento\b": "comprimento"
         }
-
-        # Notas e termos técnicos mandatórios em pranchas estruturais
-        self.mandatory_notes = [
-            {
-                "chave": "UNIDADES_MM",
-                "regex": r"(?:DIMENS[OÕ]ES|COTAS)\s+EM\s+MIL[IÍ]METROS",
-                "descricao": "Nota obrigatória: 'DIMENSÕES EM MILÍMETROS' não encontrada na prancha."
-            },
-            {
-                "chave": "SOLDA_AWS",
-                "regex": r"AWS\s+E7018|E-7018",
-                "descricao": "Especificação obrigatória de solda estrutural (AWS E7018) não localizada."
-            },
-            {
-                "chave": "PINTURA_TRATAMENTO",
-                "regex": r"PINTURA|GALVANIZA[CÇ][AÃ]O|TRATAMENTO\s+SUPERFICIAL",
-                "descricao": "Nota obrigatória de acabamento/pintura ou proteção superficial ausente."
-            }
-        ]
+        # Notas obrigatórias são verificadas pelo StandardNotesChecker (notes_checker.py)
 
     def _extract_all_texts(self, doc: ezdxf.document.Drawing) -> List[Dict[str, Any]]:
         extracted = []
@@ -49,7 +31,7 @@ class TextChecker:
         for space in spaces:
             space_name = getattr(space, "name", "Model")
             for ent in space.query("TEXT MTEXT"):
-                text_content = ent.dxf.text if ent.dxftype() == "TEXT" else ent.text
+                text_content = ent.dxf.text if ent.dxftype() == "TEXT" else ent.plain_text()
                 if not text_content:
                     continue
 
@@ -69,10 +51,6 @@ class TextChecker:
         texts = self._extract_all_texts(doc)
         issues: List[Dict[str, Any]] = []
         typo_count = 0
-        missing_notes_count = 0
-
-        # Unifica todo o conteúdo do projeto para conferir notas globais
-        full_project_corpus = " ".join([t["raw"] for t in texts]).upper()
 
         # 1. Auditoria de Erros Ortográficos em cada texto individual
         for idx, item in enumerate(texts):
@@ -95,7 +73,7 @@ class TextChecker:
                         })
 
             # Detecta eletrodo inadequado (ex.: AWS E6013 em detalhamento industrial pesado)
-            if re.search(r"AWS\s+E6013|E-6013", text_str, re.IGNORECASE):
+            if re.search(r"\bE-?6013\b", text_str, re.IGNORECASE):
                 issues.append({
                     "id": f"WELD-ERR-{idx}",
                     "tipo": "Especificação Inadequada de Solda",
@@ -105,28 +83,14 @@ class TextChecker:
                     "posicao": item["posicao"]
                 })
 
-        # 2. Auditoria de Notas Obrigatórias Globais
-        for note in self.mandatory_notes:
-            if not re.search(note["regex"], full_project_corpus):
-                missing_notes_count += 1
-                issues.append({
-                    "id": f"NOTE-MISS-{missing_notes_count}",
-                    "tipo": "Nota Mandatória Ausente",
-                    "espaco": "Geral / Prancha",
-                    "gravidade": "ALTA",
-                    "descricao": note["descricao"],
-                    "posicao": {"x": 100.0, "y": 50.0}
-                })
-
-        total_falhas = typo_count + missing_notes_count
+        total_falhas = len(issues)
         score = max(0.0, round(100.0 - (total_falhas * 12.5), 1))
 
         return {
             "modulo": "text_checker",
             "total_textos_examinados": len(texts),
             "erros_ortograficos": typo_count,
-            "notas_ausentes": missing_notes_count,
             "conformidade_percentual": score,
             "status": "REPROVADO" if total_falhas > 0 else "APROVADO",
             "inconformidades": issues
-        }
+        }

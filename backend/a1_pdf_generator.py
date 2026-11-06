@@ -6,7 +6,7 @@ from typing import Dict, Any, List, Tuple
 
 import matplotlib
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 from matplotlib.patches import Circle
 
 import ezdxf
@@ -14,6 +14,8 @@ from ezdxf import bbox
 from ezdxf.addons.drawing import RenderContext, Frontend
 from ezdxf.addons.drawing.matplotlib import MatplotlibBackend
 from ezdxf.addons.drawing.properties import LayoutProperties
+
+from cad_utils import primary_layout, to_layout_coords
 
 # Força plotagem monocromática (Preto e Branco) da geometria da prancha
 try:
@@ -40,12 +42,7 @@ class A1VerificationPDFGenerator:
         self.text_h_3mm = 8.5
 
     def _select_primary_layout(self, doc: ezdxf.document.Drawing):
-        for lay in doc.layouts:
-            if lay.name.lower() != "model":
-                ents = [e for e in lay if e.dxftype() != "VIEWPORT"]
-                if len(ents) > 10:
-                    return lay
-        return doc.modelspace()
+        return primary_layout(doc)
 
     def _draw_error_marker(self, ax, cx: float, cy: float, radius: float, color: str = "#DC2626"):
         """Desenha círculo técnico de inspeção limpo com mira de precisão."""
@@ -189,7 +186,8 @@ class A1VerificationPDFGenerator:
     def generate(self, doc: ezdxf.document.Drawing, audit_result: Dict[str, Any], output_filename: str) -> str:
         pdf_path = os.path.join(self.output_dir, output_filename)
 
-        fig = plt.figure(figsize=(self.width_in, self.height_in), dpi=300)
+        # Figure direta (sem pyplot): seguro para várias auditorias em paralelo
+        fig = Figure(figsize=(self.width_in, self.height_in), dpi=300)
         ax = fig.add_axes([0.040, 0.040, 0.920, 0.920])
         ax.axis("off")
 
@@ -231,8 +229,19 @@ class A1VerificationPDFGenerator:
 
         # 3. MARCAÇÕES EM VERDE (APROVADOS)
         inconformidades = audit_result.get("inconformidades", [])
-        error_coords = set()
+
+        # Posições convertidas para as coordenadas da folha renderizada. Itens do Model Space
+        # vistos por uma viewport são transformados; os que não aparecem na folha ficam sem
+        # marcador (seguem no quadro de ressalvas e no CSV).
+        marcaveis = []
         for err in inconformidades:
+            p = err.get("posicao", {})
+            xy = to_layout_coords(doc, target_layout, err.get("espaco"),
+                                  float(p.get("x", 0.0)), float(p.get("y", 0.0)))
+            if xy is not None:
+                marcaveis.append({**err, "posicao": {"x": xy[0], "y": xy[1]}})
+        error_coords = set()
+        for err in marcaveis:
             p = err.get("posicao", {})
             error_coords.add((round(float(p.get("x", 0)), 1), round(float(p.get("y", 0)), 1)))
 
@@ -255,7 +264,7 @@ class A1VerificationPDFGenerator:
 
         # 4. AGRUPAMENTO E POSICIONAMENTO ANTI-COLISÃO
         cluster_threshold = max(25.0, span_x * 0.035)
-        clusters = self._cluster_nearby_issues(inconformidades, cluster_dist=cluster_threshold)
+        clusters = self._cluster_nearby_issues(marcaveis, cluster_dist=cluster_threshold)
 
         marker_radius = max(8.0, span_x * 0.014)
         offset_dist_x = max(28.0, span_x * 0.045)
@@ -380,5 +389,4 @@ class A1VerificationPDFGenerator:
         )
 
         fig.savefig(pdf_path, format="pdf", dpi=300, facecolor="#FFFFFF")
-        plt.close(fig)
         return pdf_path

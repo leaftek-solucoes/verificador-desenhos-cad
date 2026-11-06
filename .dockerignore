@@ -1,0 +1,5 @@
+.git
+.devcontainer
+**/__pycache__
+**/temp_uploads
+**/temp_reports
